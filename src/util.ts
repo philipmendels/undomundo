@@ -1,3 +1,5 @@
+import { pipe } from 'fp-ts/lib/function';
+import { mapWithIndex } from 'fp-ts/lib/Record';
 import {
   StringMap,
   UpdatersByType,
@@ -15,24 +17,24 @@ export const merge = <S extends StringMap, P extends Partial<S>>(
   ...partial,
 });
 
-// type Evolver<T> = {
-//   [K in keyof T]?: Endomorphism<T[K]>;
-// };
+type Evolver<T> = {
+  [K in keyof T]?: Endomorphism<T[K]>;
+};
 
-// export const evolve = <S extends StringMap, E extends Evolver<S>>(
-//   evolver: E
-// ): Endomorphism<S> => state => ({
-//   ...state,
-//   ...pipe(
-//     evolver as Record<string, any>,
-//     mapWithIndex((k, updater) => {
-//       if (state.hasOwnProperty(k)) {
-//         return updater(state[k]);
-//       }
-//       throw new Error('booh');
-//     })
-//   ),
-// });
+export const evolve = <S extends StringMap, E extends Evolver<S>>(
+  evolver: E
+): Endomorphism<S> => state => ({
+  ...state,
+  ...pipe(
+    evolver as Record<string, any>,
+    mapWithIndex((k, updater) => {
+      if (state.hasOwnProperty(k)) {
+        return updater(state[k]);
+      }
+      throw new Error('wrong key');
+    })
+  ),
+});
 
 const mapRecord = <B>(
   a: Record<keyof B, any>,

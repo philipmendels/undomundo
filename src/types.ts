@@ -20,6 +20,12 @@ export type UndoMap<S, V, P> = {
   payloadMap: PayloadMap<V, P>;
 };
 
+export type UndoRedoMap<S, V, P> = {
+  setValue: Updater<V, S>;
+  getValue: Updater<S, V>;
+  payloadMap: PayloadMap<V, P>;
+};
+
 export type PayloadValue<P, V> = {
   payload: P;
   value: V;
@@ -43,6 +49,10 @@ export type UActionUnion<PBT extends StringMap> = {
 
 export type UndoMapByType<S, PBT extends PayloadByType> = {
   [K in keyof PBT]: UndoMap<S, PBT[K]['value'], PBT[K]['payload']>;
+};
+
+export type UndoRedoMapByType<S, PBT extends PayloadByType> = {
+  [K in keyof PBT]: UndoRedoMap<S, PBT[K]['value'], PBT[K]['payload']>;
 };
 
 export type PayloadUndoRedo<T> = {

@@ -2,6 +2,9 @@ import { PayloadValueDelta, PayloadValueUndoRedo, Reducer } from '../src/types';
 
 import { wrapReducer } from '../src';
 import { makePayloadDeltaMap, makePayloadUndoRedoMap } from '../src/helpers';
+import { evolve, merge } from '../src/util';
+import { pipe } from 'fp-ts/lib/function';
+import { add } from './util';
 
 export type State = {
   count: number;
@@ -25,16 +28,10 @@ export type PBT = {
 
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'add') {
-    return {
-      ...state,
-      count: state.count + action.payload,
-    };
+    return pipe(state, evolve({ count: add(action.payload) }));
   }
   if (action.type === 'updateCount') {
-    return {
-      ...state,
-      count: action.payload,
-    };
+    return pipe(state, merge({ count: action.payload }));
   }
   return state;
 };
