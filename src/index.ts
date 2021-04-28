@@ -4,7 +4,6 @@ import {
   Reducer,
   ActionUnion,
   ValueByType,
-  RI,
   UndoMapByType,
   StateWithHistory,
   UActions,
@@ -27,11 +26,11 @@ const makePayload = <S, V, P>(state: S, value: V, map: UndoMap<S, V, P>) =>
   map.payloadMap.init(map.getValue(state)(value), value);
 
 export const wrapReducer = <S, PBT extends PayloadByType>(
-  reducer: Reducer<S, ActionUnion<ValueByType<RI<PBT>>>>,
-  payloadMaps: UndoMapByType<S, RI<PBT>>
+  reducer: Reducer<S, ActionUnion<ValueByType<PBT>>>,
+  payloadMaps: UndoMapByType<S, PBT>
 ): Reducer<
-  StateWithHistory<S, RI<PBT>>,
-  UActions | UActionUnion<ValueByType<RI<PBT>>>
+  StateWithHistory<S, PBT>,
+  UActions | UActionUnion<ValueByType<PBT>>
 > => (stateWithHist, action) => {
   const { state, history, effects } = stateWithHist;
   if (action.type === 'undo') {
@@ -72,9 +71,7 @@ export const wrapReducer = <S, PBT extends PayloadByType>(
       return stateWithHist;
     }
   } else {
-    const { type, payload, meta } = action as UActionUnion<
-      ValueByType<RI<PBT>>
-    >;
+    const { type, payload, meta } = action as UActionUnion<ValueByType<PBT>>;
     const originalAction = { type, payload }; // TODO: it is not correct to just remove meta...
     const umap = payloadMaps[type];
     const skip = meta?.skipAddToHist;

@@ -1,9 +1,4 @@
-import {
-  PayloadByType,
-  PayloadValueDelta,
-  PayloadValueUndoRedo,
-  Reducer,
-} from '../src/types';
+import { PayloadValueDelta, PayloadValueUndoRedo, Reducer } from '../src/types';
 
 import { wrapReducer } from '../src';
 import { makePayloadDeltaMap, makePayloadUndoRedoMap } from '../src/helpers';
@@ -22,10 +17,11 @@ type Actions =
       payload: number;
     };
 
-export interface PBT extends PayloadByType {
+// Need to use an object type literal. Interface does not seem to work due to index signature.
+export type PBT = {
   updateCount: PayloadValueUndoRedo<number>;
   add: PayloadValueDelta<number>;
-}
+};
 
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'add') {
