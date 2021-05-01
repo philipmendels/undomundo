@@ -1,10 +1,10 @@
-import { PayloadValueDelta, PayloadValueUndoRedo, Reducer } from '../src/types';
+import { PayloadConfigUndoRedo, Reducer } from '../src/types';
 
 import { wrapReducer } from '../src';
-import { makePayloadDeltaMap, makePayloadUndoRedoMap } from '../src/helpers';
-import { evolve, merge } from '../src/util';
+import { getDefaultUndoConfigAbsolute } from '../src/helpers';
+import { add, evolve, merge } from '../src/util';
 import { pipe } from 'fp-ts/lib/function';
-import { add } from './util';
+import { negate } from 'fp-ts-std/Number';
 
 export type State = {
   count: number;
@@ -12,7 +12,7 @@ export type State = {
 
 type Actions =
   | {
-      type: 'add';
+      type: 'addToCount';
       payload: number;
     }
   | {
@@ -22,12 +22,14 @@ type Actions =
 
 // Need to use an object type literal. Interface does not seem to work due to index signature.
 export type PBT = {
-  updateCount: PayloadValueUndoRedo<number>;
-  add: PayloadValueDelta<number>;
+  updateCount: PayloadConfigUndoRedo<number>;
+  addToCount: {
+    original: number;
+  };
 };
 
 const reducer: Reducer<State, Actions> = (state, action) => {
-  if (action.type === 'add') {
+  if (action.type === 'addToCount') {
     return pipe(state, evolve({ count: add(action.payload) }));
   }
   if (action.type === 'updateCount') {
@@ -37,6 +39,8 @@ const reducer: Reducer<State, Actions> = (state, action) => {
 };
 
 export const uReducer = wrapReducer<State, PBT>(reducer, {
-  add: makePayloadDeltaMap(payload => -payload),
-  updateCount: makePayloadUndoRedoMap(state => state.count),
+  addToCount: {
+    undo: evolve({ payload: negate }),
+  },
+  updateCount: getDefaultUndoConfigAbsolute(state => _ => state.count),
 });

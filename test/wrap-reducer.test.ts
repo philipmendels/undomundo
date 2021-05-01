@@ -2,7 +2,7 @@ import { StateWithHistory } from '../src/types';
 import { PBT, State, uReducer } from './shared';
 
 describe('wrapReducer', () => {
-  let stateWithHist: StateWithHistory<State, PBT> = {
+  let stateWithHistory: StateWithHistory<State, PBT> = {
     effects: [],
     history: {
       stack: [],
@@ -12,26 +12,34 @@ describe('wrapReducer', () => {
       count: 3,
     },
   };
-  it('works', () => {
-    stateWithHist = uReducer(stateWithHist, { type: 'add', payload: 3 });
-    expect(stateWithHist.state.count).toEqual(6);
+  it('update works', () => {
+    stateWithHistory = uReducer(stateWithHistory, {
+      type: 'addToCount',
+      payload: 3,
+    });
+    expect(stateWithHistory.state.count).toEqual(6);
 
-    stateWithHist = uReducer(stateWithHist, {
+    stateWithHistory = uReducer(stateWithHistory, {
       type: 'updateCount',
       payload: 4,
     });
-    expect(stateWithHist.state.count).toEqual(4);
 
-    stateWithHist = uReducer(stateWithHist, { type: 'undo' });
-    expect(stateWithHist.state.count).toEqual(6);
+    expect(stateWithHistory.state.count).toEqual(4);
+  });
 
-    stateWithHist = uReducer(stateWithHist, { type: 'undo' });
-    expect(stateWithHist.state.count).toEqual(3);
+  it('undo works', () => {
+    stateWithHistory = uReducer(stateWithHistory, { type: 'undo' });
+    expect(stateWithHistory.state.count).toEqual(6);
 
-    stateWithHist = uReducer(stateWithHist, { type: 'redo' });
-    expect(stateWithHist.state.count).toEqual(6);
+    stateWithHistory = uReducer(stateWithHistory, { type: 'undo' });
+    expect(stateWithHistory.state.count).toEqual(3);
+  });
 
-    stateWithHist = uReducer(stateWithHist, { type: 'redo' });
-    expect(stateWithHist.state.count).toEqual(4);
+  it('redo works', () => {
+    stateWithHistory = uReducer(stateWithHistory, { type: 'redo' });
+    expect(stateWithHistory.state.count).toEqual(6);
+
+    stateWithHistory = uReducer(stateWithHistory, { type: 'redo' });
+    expect(stateWithHistory.state.count).toEqual(4);
   });
 });

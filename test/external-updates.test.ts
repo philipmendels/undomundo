@@ -1,4 +1,8 @@
-import { ActionUnion, StateWithHistory, ValueByType } from '../src/types';
+import {
+  ActionUnion,
+  StateWithHistory,
+  PayloadOriginalByType,
+} from '../src/types';
 import { State, PBT, uReducer } from './shared';
 
 const createClient = () => {
@@ -14,7 +18,7 @@ const createClient = () => {
   };
   return {
     inspect: () => stateWithHist,
-    push: (actions: ActionUnion<ValueByType<PBT>>[]) => {
+    push: (actions: ActionUnion<PayloadOriginalByType<PBT>>[]) => {
       actions.forEach(action => {
         stateWithHist = uReducer(stateWithHist, {
           ...action,
@@ -38,7 +42,7 @@ const createClient = () => {
     },
     add: (amount: number) => {
       stateWithHist = uReducer(stateWithHist, {
-        type: 'add',
+        type: 'addToCount',
         payload: amount,
       });
     },
@@ -51,6 +55,7 @@ const createClient = () => {
   };
 };
 
+// TODO: test if payload rewrite works
 describe('external updates', () => {
   const client1 = createClient();
   const client2 = createClient();
@@ -81,7 +86,7 @@ describe('external updates', () => {
 describe('last write wins', () => {
   const client1 = createClient();
   const client2 = createClient();
-  let serverHist: ActionUnion<ValueByType<PBT>>[] = [];
+  let serverHist: ActionUnion<PayloadOriginalByType<PBT>>[] = [];
   it('works as expected', () => {
     client1.updateCount(3);
     let s1 = client1.inspect();

@@ -53,6 +53,7 @@
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "fp-ts": "^2.10.4"
+    "fp-ts": "^2.10.4",
+    "fp-ts-std": "^0.10.0"
   }
 }

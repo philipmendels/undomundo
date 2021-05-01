@@ -1,94 +1,139 @@
+import { map, append } from 'fp-ts/lib/Array';
+import { identity, pipe } from 'fp-ts/lib/function';
 import {
-  UndoMap,
-  PayloadByType,
+  UndoConfigAbsolute,
+  PayloadConfigByType,
   Reducer,
   ActionUnion,
-  ValueByType,
-  UndoMapByType,
+  PayloadOriginalByType,
+  UndoConfigByType,
   StateWithHistory,
   UActions,
   UActionUnion,
+  isUndoConfigAbsolute,
+  undoConfigAsRelative,
 } from './types';
+import { add1, evolve, subtract1 } from './util';
 
-const updateOnUndo = <S, V, P>(state: S, payload: P, map: UndoMap<S, V, P>) =>
-  map.payloadMap.init(
-    map.payloadMap.getUndo(payload),
-    map.getValue(state)(map.payloadMap.getDrdo(payload))
+const updateOnUndo = <S, PO, PUR>(
+  state: S,
+  payloadUndoRedo: PUR,
+  config: UndoConfigAbsolute<S, PO, PUR>
+) =>
+  config.boxUndoRedo(
+    config.getUndo(payloadUndoRedo),
+    config.updatePayload(state)(config.getRedo(payloadUndoRedo))
   );
 
-const updateOnRedo = <S, V, P>(state: S, payload: P, map: UndoMap<S, V, P>) =>
-  map.payloadMap.init(
-    map.payloadMap.getUndo(payload),
-    map.getValue(state)(map.payloadMap.getDrdo(payload))
+const updateOnRedo = <S, PO, PUR>(
+  state: S,
+  payloadUndoRedo: PUR,
+  config: UndoConfigAbsolute<S, PO, PUR>
+) =>
+  config.boxUndoRedo(
+    config.updatePayload(state)(config.getUndo(payloadUndoRedo)),
+    config.getRedo(payloadUndoRedo)
   );
 
-const makePayload = <S, V, P>(state: S, value: V, map: UndoMap<S, V, P>) =>
-  map.payloadMap.init(map.getValue(state)(value), value);
+const makePayload = <S, PO, PUR>(
+  state: S,
+  payloadOriginal: PO,
+  config: UndoConfigAbsolute<S, PO, PUR>
+) =>
+  config.boxUndoRedo(
+    config.updatePayload(state)(payloadOriginal),
+    payloadOriginal
+  );
 
-export const wrapReducer = <S, PBT extends PayloadByType>(
-  reducer: Reducer<S, ActionUnion<ValueByType<PBT>>>,
-  payloadMaps: UndoMapByType<S, PBT>
+export const wrapReducer = <S, PBT extends PayloadConfigByType>(
+  reducer: Reducer<S, ActionUnion<PayloadOriginalByType<PBT>>>,
+  configs: UndoConfigByType<S, PBT>
 ): Reducer<
   StateWithHistory<S, PBT>,
-  UActions | UActionUnion<ValueByType<PBT>>
+  UActions | UActionUnion<PayloadOriginalByType<PBT>>
 > => (stateWithHist, action) => {
-  const { state, history, effects } = stateWithHist;
+  const { state, history } = stateWithHist;
   if (action.type === 'undo') {
     if (history.index >= 0) {
-      const item = history.stack[history.index];
-      const { type, payload } = item;
-      const umap = payloadMaps[type];
-      item.payload = updateOnUndo(state, payload, umap);
-      const newAction = { type, payload: umap.payloadMap.getUndo(payload) };
-      return {
-        history: {
-          ...history,
-          index: history.index - 1,
-        },
-        state: reducer(state, newAction),
-        effects: [...effects, newAction],
-      };
+      const currentItem = history.stack[history.index];
+      const { type, payload } = currentItem;
+      const config = configs[type];
+      const newAction = isUndoConfigAbsolute(config)
+        ? { type, payload: config.getUndo(payload) }
+        : undoConfigAsRelative<PBT>(config).undo({ type, payload });
+      return pipe(
+        stateWithHist,
+        evolve({
+          history: evolve({
+            index: subtract1,
+            stack: isUndoConfigAbsolute(config)
+              ? map(item =>
+                  item === currentItem
+                    ? { type, payload: updateOnUndo(state, payload, config) }
+                    : item
+                )
+              : identity,
+          }),
+          state: prev => reducer(prev, newAction),
+          effects: append(newAction),
+        })
+      );
     } else {
       return stateWithHist;
     }
   } else if (action.type === 'redo') {
-    const lastIndex = history.stack.length - 1;
-    if (history.index < lastIndex) {
-      const item = history.stack[history.index + 1];
-      const { type, payload } = item;
-      const umap = payloadMaps[type];
-      item.payload = updateOnRedo(state, payload, umap);
-      const newAction = { type, payload: umap.payloadMap.getDrdo(payload) };
-      return {
-        history: {
-          ...history,
-          index: history.index + 1,
-        },
-        state: reducer(state, newAction),
-        effects: [...effects, newAction],
-      };
+    if (history.index < history.stack.length - 1) {
+      const currentItem = history.stack[history.index + 1];
+      const { type, payload } = currentItem;
+      const config = configs[type];
+      const newAction = isUndoConfigAbsolute(config)
+        ? { type, payload: config.getRedo(payload) }
+        : { type, payload };
+
+      return pipe(
+        stateWithHist,
+        evolve({
+          history: evolve({
+            index: add1,
+            stack: isUndoConfigAbsolute(config)
+              ? map(item =>
+                  item === currentItem
+                    ? { type, payload: updateOnRedo(state, payload, config) }
+                    : item
+                )
+              : identity,
+          }),
+          state: prev => reducer(prev, newAction),
+          effects: append(newAction),
+        })
+      );
     } else {
       return stateWithHist;
     }
   } else {
-    const { type, payload, meta } = action as UActionUnion<ValueByType<PBT>>;
+    const { type, payload, meta } = action as UActionUnion<
+      PayloadOriginalByType<PBT>
+    >;
     const originalAction = { type, payload }; // TODO: it is not correct to just remove meta...
-    const umap = payloadMaps[type];
+    const config = configs[type];
     const skip = meta?.skipAddToHist;
-    return {
-      // TODO: do we want to store the full hist of effects including the external ones?
-      effects: skip ? effects : [...effects, originalAction],
-      history: skip
-        ? history
-        : {
-            index: history.index + 1, // TODO: remove future or new branch
-            stack: [
-              ...history.stack,
-              { type, payload: makePayload(state, payload, umap) },
-            ],
-          },
-      state: reducer(state, originalAction),
-    };
+    const newItem = isUndoConfigAbsolute(config)
+      ? { type, payload: makePayload(state, payload, config) as any }
+      : { type, payload };
+
+    return pipe(
+      stateWithHist,
+      evolve({
+        history: skip
+          ? identity
+          : evolve({
+              index: add1,
+              stack: append(newItem),
+            }),
+        state: prev => reducer(prev, originalAction),
+        effects: skip ? identity : append(originalAction),
+      })
+    );
   }
 };
 

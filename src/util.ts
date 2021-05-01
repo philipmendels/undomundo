@@ -10,6 +10,12 @@ import {
   Endomorphism,
 } from './types';
 
+export const add = (a: number) => (b: number) => a + b;
+export const add1 = add(1);
+export const subtract = (a: number) => add(-a);
+export const subtract1 = subtract(1);
+
+// TODO: hasOwnProperty check
 export const merge = <S extends StringMap, P extends Partial<S>>(
   partial: P
 ): Endomorphism<S> => state => ({
