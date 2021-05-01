@@ -30,7 +30,9 @@ export type PBT = {
 
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'addToCount') {
-    return pipe(state, evolve({ count: add(action.payload) }));
+    const { payload } = action;
+    // just for testing if referentially equal state is ignored
+    return payload === 0 ? state : pipe(state, evolve({ count: add(payload) }));
   }
   if (action.type === 'updateCount') {
     return pipe(state, merge({ count: action.payload }));

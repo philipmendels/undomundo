@@ -114,26 +114,46 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
     const { type, payload, meta } = action as UActionUnion<
       PayloadOriginalByType<PBT>
     >;
-    const originalAction = { type, payload }; // TODO: it is not correct to just remove meta...
-    const config = configs[type];
-    const skip = meta?.skipAddToHist;
-    const newItem = isUndoConfigAbsolute(config)
-      ? { type, payload: makePayload(state, payload, config) as any }
-      : { type, payload };
+    // TODO: is it safe to just remove 'meta' (what if the original action also had it)?
+    const originalAction = { type, payload };
 
-    return pipe(
-      stateWithHist,
-      evolve({
-        history: skip
-          ? identity
-          : evolve({
-              index: add1,
-              stack: append(newItem),
-            }),
-        state: prev => reducer(prev, originalAction),
-        effects: skip ? identity : append(originalAction),
-      })
-    );
+    const newState = reducer(state, originalAction);
+
+    // TODO: what about deep equality?
+    if (newState === state) {
+      return stateWithHist;
+    } else {
+      const config = configs[type];
+      const skip = !config || meta?.skipAddToHist;
+
+      if (config && isUndoConfigAbsolute(config)) {
+        // TODO: is this optimization safe?
+        if (config.updatePayload(state)(payload) === payload) {
+          return stateWithHist;
+        }
+      }
+
+      return pipe(
+        stateWithHist,
+        evolve({
+          history: skip
+            ? identity
+            : evolve({
+                index: add1,
+                stack: append(
+                  isUndoConfigAbsolute(config)
+                    ? {
+                        type,
+                        payload: makePayload(state, payload, config) as any,
+                      }
+                    : { type, payload }
+                ),
+              }),
+          state: () => newState,
+          effects: skip ? identity : append(originalAction),
+        })
+      );
+    }
   }
 };
 
