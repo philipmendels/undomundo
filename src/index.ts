@@ -1,25 +1,24 @@
-import { map, append } from 'fp-ts/lib/Array';
+import { append } from 'fp-ts/lib/Array';
 import { identity, pipe } from 'fp-ts/lib/function';
 import {
   UndoConfigAbsolute,
   PayloadConfigByType,
-  Reducer,
-  ActionUnion,
-  PayloadOriginalByType,
   UndoConfigByType,
-  StateWithHistory,
-  UActions,
-  UActionUnion,
   isUndoConfigAbsolute,
   undoConfigAsRelative,
+  HistoryItemUnion,
+  OriginalActionUnion,
+  OriginalUActionUnion,
+  UReducerOf,
+  ReducerOf,
 } from './types';
-import { add1, evolve, subtract1 } from './util';
+import { add1, evolve, subtract1, updateArrayAt } from './util';
 
 const updateOnUndo = <S, PO, PUR>(
   state: S,
   payloadUndoRedo: PUR,
   config: UndoConfigAbsolute<S, PO, PUR>
-) =>
+): PUR =>
   config.boxUndoRedo(
     config.getUndo(payloadUndoRedo),
     config.updatePayload(state)(config.getRedo(payloadUndoRedo))
@@ -29,7 +28,7 @@ const updateOnRedo = <S, PO, PUR>(
   state: S,
   payloadUndoRedo: PUR,
   config: UndoConfigAbsolute<S, PO, PUR>
-) =>
+): PUR =>
   config.boxUndoRedo(
     config.updatePayload(state)(config.getUndo(payloadUndoRedo)),
     config.getRedo(payloadUndoRedo)
@@ -39,39 +38,37 @@ const makePayload = <S, PO, PUR>(
   state: S,
   payloadOriginal: PO,
   config: UndoConfigAbsolute<S, PO, PUR>
-) =>
+): PUR =>
   config.boxUndoRedo(
     config.updatePayload(state)(payloadOriginal),
     payloadOriginal
   );
 
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
-  reducer: Reducer<S, ActionUnion<PayloadOriginalByType<PBT>>>,
+  reducer: ReducerOf<S, PBT>,
   configs: UndoConfigByType<S, PBT>
-): Reducer<
-  StateWithHistory<S, PBT>,
-  UActions | UActionUnion<PayloadOriginalByType<PBT>>
-> => (stateWithHist, action) => {
+): UReducerOf<S, PBT> => (stateWithHist, action) => {
   const { state, history } = stateWithHist;
   if (action.type === 'undo') {
     if (history.index >= 0) {
-      const currentItem = history.stack[history.index];
+      const currentIndex = history.index;
+      const currentItem = history.stack[currentIndex];
       const { type, payload } = currentItem;
       const config = configs[type];
-      const newAction = isUndoConfigAbsolute(config)
+      const newAction = isUndoConfigAbsolute<S, PBT>(config)
         ? { type, payload: config.getUndo(payload) }
         : undoConfigAsRelative<PBT>(config).undo({ type, payload });
+
       return pipe(
         stateWithHist,
         evolve({
           history: evolve({
             index: subtract1,
-            stack: isUndoConfigAbsolute(config)
-              ? map(item =>
-                  item === currentItem
-                    ? { type, payload: updateOnUndo(state, payload, config) }
-                    : item
-                )
+            stack: isUndoConfigAbsolute<S, PBT>(config)
+              ? updateArrayAt(currentIndex, {
+                  type,
+                  payload: updateOnUndo(state, payload, config),
+                })
               : identity,
           }),
           state: prev => reducer(prev, newAction),
@@ -83,10 +80,13 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
     }
   } else if (action.type === 'redo') {
     if (history.index < history.stack.length - 1) {
-      const currentItem = history.stack[history.index + 1];
+      const currentIndex = history.index + 1;
+      const currentItem = history.stack[currentIndex];
       const { type, payload } = currentItem;
       const config = configs[type];
-      const newAction = isUndoConfigAbsolute(config)
+      const newAction: OriginalActionUnion<PBT> = isUndoConfigAbsolute<S, PBT>(
+        config
+      )
         ? { type, payload: config.getRedo(payload) }
         : { type, payload };
 
@@ -95,12 +95,11 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
         evolve({
           history: evolve({
             index: add1,
-            stack: isUndoConfigAbsolute(config)
-              ? map(item =>
-                  item === currentItem
-                    ? { type, payload: updateOnRedo(state, payload, config) }
-                    : item
-                )
+            stack: isUndoConfigAbsolute<S, PBT>(config)
+              ? updateArrayAt(currentIndex, {
+                  type,
+                  payload: updateOnRedo(state, payload, config),
+                })
               : identity,
           }),
           state: prev => reducer(prev, newAction),
@@ -111,9 +110,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       return stateWithHist;
     }
   } else {
-    const { type, payload, meta } = action as UActionUnion<
-      PayloadOriginalByType<PBT>
-    >;
+    const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
     // TODO: is it safe to just remove 'meta' (what if the original action also had it)?
     const originalAction = { type, payload };
 
@@ -126,7 +123,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       const config = configs[type];
       const skip = !config || meta?.skipAddToHist;
 
-      if (config && isUndoConfigAbsolute(config)) {
+      if (config && isUndoConfigAbsolute<S, PBT>(config)) {
         // TODO: is this optimization safe?
         if (config.updatePayload(state)(payload) === payload) {
           return stateWithHist;
@@ -141,12 +138,12 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
             : evolve({
                 index: add1,
                 stack: append(
-                  isUndoConfigAbsolute(config)
+                  (isUndoConfigAbsolute<S, PBT>(config)
                     ? {
                         type,
-                        payload: makePayload(state, payload, config) as any,
+                        payload: makePayload(state, payload, config),
                       }
-                    : { type, payload }
+                    : { type, payload }) as HistoryItemUnion<PBT>
                 ),
               }),
           state: () => newState,

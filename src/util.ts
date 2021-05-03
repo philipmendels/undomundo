@@ -15,6 +15,12 @@ export const add1 = add(1);
 export const subtract = (a: number) => add(-a);
 export const subtract1 = subtract(1);
 
+export const updateArrayAt = <A>(i: number, item: A) => (array: A[]): A[] => {
+  const clone = array.slice();
+  clone[i] = item;
+  return clone;
+};
+
 // TODO: hasOwnProperty check
 export const merge = <S extends StringMap, P extends Partial<S>>(
   partial: P
