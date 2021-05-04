@@ -48,13 +48,21 @@ export const evolve = <S extends StringMap, E extends Evolver<S>>(
   ),
 });
 
-const mapRecord = <B>(
-  a: Record<keyof B, any>,
-  fn: (k: keyof B) => B[keyof B]
-) =>
-  (Object.fromEntries(
-    Object.entries(a).map(([k, _]) => [k, fn(k as keyof B)])
-  ) as any) as B;
+export const mapRecord = <A extends StringMap>(a: A) => <B extends StringMap>(
+  updater: (va: ValueOf<A>) => ValueOf<B>
+) => mapRecordWithKey(a)<B>((_, v) => updater(v));
+
+export const mapRecordWithKey = <A extends StringMap>(a: A) => <
+  B extends StringMap
+>(
+  updater: (ka: keyof A, va: ValueOf<A>) => ValueOf<B>
+): B => {
+  const b: any = {};
+  for (const k in a) {
+    b[k] = updater(k, a[k]);
+  }
+  return b;
+};
 
 export const makeReducer = <S, PBT extends StringMap>(
   stateUpdaters: UpdatersByType<S, PBT>
@@ -63,8 +71,7 @@ export const makeReducer = <S, PBT extends StringMap>(
     const updater = stateUpdaters[type];
     return updater ? updater(payload)(state) : state;
   }) as Reducer<S, ActionUnion<PBT>>,
-  actionCreators: mapRecord<ActionCreatorsByType<PBT>>(
-    stateUpdaters,
-    type => (payload: ValueOf<PBT>) => ({ payload, type })
+  actionCreators: mapRecordWithKey(stateUpdaters)<ActionCreatorsByType<PBT>>(
+    type => payload => ({ payload, type })
   ),
 });

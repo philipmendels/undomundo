@@ -1,14 +1,11 @@
-import { pipe } from 'fp-ts/lib/function';
-import { map } from 'fp-ts/lib/Record';
 import { wrapReducer } from './wrap-reducer';
 import {
   PayloadConfigByType,
   UndoRedoConfigByType,
   UpdatersByType,
   PayloadOriginalByType,
-  ValueOf,
 } from './types';
-import { makeReducer } from './util';
+import { makeReducer, mapRecord } from './util';
 
 export const makeCustomUndoableReducer = <S, PBT extends PayloadConfigByType>(
   configs: UndoRedoConfigByType<S, PBT>
@@ -17,10 +14,9 @@ export const makeCustomUndoableReducer = <S, PBT extends PayloadConfigByType>(
     S,
     PayloadOriginalByType<PBT>
   >(
-    pipe(
-      configs,
-      map<any, any>((config: ValueOf<typeof configs>) => config.updateState)
-    ) as UpdatersByType<S, PayloadOriginalByType<PBT>>
+    mapRecord(configs)<UpdatersByType<S, PayloadOriginalByType<PBT>>>(
+      config => config.updateState
+    )
   );
   return {
     uReducer: wrapReducer<S, PBT>(reducer, configs),

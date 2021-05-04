@@ -1,5 +1,3 @@
-import { pipe } from 'fp-ts/lib/function';
-import { map } from 'fp-ts/lib/Record';
 import { getDefaultUndoRedoConfigAbsolute } from './helpers';
 import { makeCustomUndoableReducer } from './make-custom-undoable-reducer';
 import {
@@ -7,22 +5,20 @@ import {
   StringMap,
   ToPayloadConfigByType,
   UndoRedoConfigByType,
-  ValueOf,
 } from './types';
+import { mapRecord } from './util';
 
 export const makeUndoableReducer = <S, M extends StringMap>(
   configs: DefaultUndoRedoConfigByType<S, M>
 ) => {
   type PBT = ToPayloadConfigByType<M>;
   return makeCustomUndoableReducer<S, PBT>(
-    pipe(
-      configs,
-      map<any, any>((config: ValueOf<typeof configs>) =>
+    mapRecord(configs)<UndoRedoConfigByType<S, PBT>>(
+      config =>
         getDefaultUndoRedoConfigAbsolute(
           config.updatePayload,
           config.updateState
-        )
-      )
-    ) as UndoRedoConfigByType<S, PBT>
+        ) as any
+    )
   );
 };

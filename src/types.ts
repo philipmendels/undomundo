@@ -157,6 +157,10 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
 };
 
+export type PayloadHandlersByType<S, PBT extends StringMap> = {
+  [K in keyof PBT]: (p: PBT[K]) => S;
+};
+
 export type HistoryItem<T, PU> = {
   type: T;
   payload: PU;
