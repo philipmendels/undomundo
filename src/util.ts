@@ -1,5 +1,5 @@
-import { pipe } from 'fp-ts/lib/function';
-import { mapWithIndex } from 'fp-ts/lib/Record';
+import { pipe } from 'fp-ts/function';
+import { mapWithIndex } from 'fp-ts/Record';
 import {
   StringMap,
   UpdatersByType,

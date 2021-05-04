@@ -3,7 +3,7 @@ import { PayloadConfigUndoRedo, Reducer } from '../src/types';
 import { wrapReducer } from '../src';
 import { getDefaultUndoConfigAbsolute } from '../src/helpers';
 import { add, evolve, merge } from '../src/util';
-import { pipe } from 'fp-ts/lib/function';
+import { pipe } from 'fp-ts/function';
 import { negate } from 'fp-ts-std/Number';
 
 export type State = {

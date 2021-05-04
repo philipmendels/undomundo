@@ -1,5 +1,5 @@
-import { append } from 'fp-ts/lib/Array';
-import { identity, pipe } from 'fp-ts/lib/function';
+import { append } from 'fp-ts/Array';
+import { identity, pipe } from 'fp-ts/function';
 import {
   UndoConfigAbsolute,
   PayloadConfigByType,
