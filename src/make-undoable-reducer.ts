@@ -1,29 +1,28 @@
 import { pipe } from 'fp-ts/lib/function';
 import { map } from 'fp-ts/lib/Record';
-import { wrapReducer } from '.';
+import { getDefaultUndoRedoConfigAbsolute } from './helpers';
+import { makeCustomUndoableReducer } from './make-custom-undoable-reducer';
 import {
-  PayloadConfigByType,
+  DefaultUndoRedoConfigByType,
+  StringMap,
+  ToPayloadConfigByType,
   UndoRedoConfigByType,
-  UpdatersByType,
-  PayloadOriginalByType,
   ValueOf,
 } from './types';
-import { makeReducer } from './util';
 
-export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
-  configs: UndoRedoConfigByType<S, PBT>
+export const makeUndoableReducer = <S, M extends StringMap>(
+  configs: DefaultUndoRedoConfigByType<S, M>
 ) => {
-  const { reducer, actionCreators } = makeReducer<
-    S,
-    PayloadOriginalByType<PBT>
-  >(
+  type PBT = ToPayloadConfigByType<M>;
+  return makeCustomUndoableReducer<S, PBT>(
     pipe(
       configs,
-      map<any, any>((config: ValueOf<typeof configs>) => config.updateState)
-    ) as UpdatersByType<S, PayloadOriginalByType<PBT>>
+      map<any, any>((config: ValueOf<typeof configs>) =>
+        getDefaultUndoRedoConfigAbsolute(
+          config.updatePayload,
+          config.updateState
+        )
+      )
+    ) as UndoRedoConfigByType<S, PBT>
   );
-  return {
-    uReducer: wrapReducer<S, PBT>(reducer, configs),
-    actionCreators,
-  };
 };
