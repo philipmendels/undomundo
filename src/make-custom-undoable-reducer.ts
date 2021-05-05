@@ -4,6 +4,7 @@ import {
   UndoRedoConfigByType,
   UpdatersByType,
   PayloadOriginalByType,
+  UActionCreatorsByType,
 } from './types';
 import { makeReducer, mapRecord } from './util';
 
@@ -20,6 +21,11 @@ export const makeCustomUndoableReducer = <S, PBT extends PayloadConfigByType>(
   );
   return {
     uReducer: wrapReducer<S, PBT>(reducer, configs),
-    actionCreators,
+    actionCreators: mapRecord(actionCreators)<
+      UActionCreatorsByType<PayloadOriginalByType<PBT>>
+    >(ac => (payload, skipHistory) => ({
+      ...ac(payload),
+      ...(skipHistory && { meta: { skipHistory } }),
+    })),
   };
 };

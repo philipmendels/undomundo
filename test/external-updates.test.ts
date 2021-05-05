@@ -22,7 +22,7 @@ const createClient = () => {
       actions.forEach(action => {
         stateWithHist = uReducer(stateWithHist, {
           ...action,
-          meta: { skipAddToHist: true },
+          meta: { skipHistory: true },
         });
       });
     },

@@ -12,6 +12,7 @@ describe('wrapReducer', () => {
       count: 3,
     },
   };
+
   it('update works', () => {
     stateWithHistory = uReducer(stateWithHistory, {
       type: 'addToCount',
@@ -48,7 +49,7 @@ describe('wrapReducer', () => {
     stateWithHistory = uReducer(stateWithHistory, {
       type: 'some-unknown-type',
     } as any);
-    expect(stateWithHistory).toEqual(prev);
+    expect(stateWithHistory).toBe(prev);
   });
 
   it('ignores relative update that leads to referentially equal state', () => {
@@ -57,7 +58,7 @@ describe('wrapReducer', () => {
       type: 'addToCount',
       payload: 0,
     });
-    expect(stateWithHistory.history).toEqual(prev.history);
+    expect(stateWithHistory.history).toBe(prev.history);
   });
 
   it('ignores absolute update that leads to referentially equal state', () => {
@@ -66,6 +67,19 @@ describe('wrapReducer', () => {
       type: 'updateCount',
       payload: prev.state.count,
     });
-    expect(stateWithHistory.history).toEqual(prev.history);
+    expect(stateWithHistory.history).toBe(prev.history);
+  });
+
+  it('skip history works', () => {
+    const prevHist = stateWithHistory.history;
+    stateWithHistory = uReducer(stateWithHistory, {
+      type: 'updateCount',
+      payload: 33,
+      meta: {
+        skipHistory: true,
+      },
+    });
+    expect(stateWithHistory.state.count).toBe(33);
+    expect(stateWithHistory.history).toBe(prevHist);
   });
 });

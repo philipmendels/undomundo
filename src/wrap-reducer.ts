@@ -121,7 +121,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       return stateWithHist;
     } else {
       const config = configs[type];
-      const skip = !config || meta?.skipAddToHist;
+      const skip = !config || meta?.skipHistory;
 
       if (config && isUndoConfigAbsolute<S, PBT>(config)) {
         // TODO: is this optimization safe?

@@ -77,4 +77,17 @@ describe('makeUndoableState', () => {
       oldState,
     });
   });
+
+  it('skip history works', () => {
+    const oldState = newState;
+    const prevHist = oldState.history;
+    newState = updateCount(33, true);
+    expect(newState.state.count).toBe(33);
+    expect(newState.history).toBe(prevHist);
+    expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
+      action: { type: 'updateCount', payload: 33, meta: { skipHistory: true } },
+      newState,
+      oldState,
+    });
+  });
 });

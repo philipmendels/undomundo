@@ -39,11 +39,13 @@ export type ActionUnion<PBT extends StringMap> = ValueOf<
   }
 >;
 
+export type UAction<T, P> = Action<T, P> & {
+  meta?: { skipHistory?: boolean };
+};
+
 export type UActionUnion<PBT extends StringMap> = ValueOf<
   {
-    [K in keyof PBT]: Action<K, PBT[K]> & {
-      meta?: { skipAddToHist?: boolean };
-    };
+    [K in keyof PBT]: UAction<K, PBT[K]>;
   }
 >;
 
@@ -157,8 +159,15 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
 };
 
+export type UActionCreatorsByType<PBT extends StringMap> = {
+  [K in keyof PBT]: (
+    payload: PBT[K],
+    skipHistory?: boolean
+  ) => UAction<K, PBT[K]>;
+};
+
 export type PayloadHandlersByType<S, PBT extends StringMap> = {
-  [K in keyof PBT]: (p: PBT[K]) => S;
+  [K in keyof PBT]: (p: PBT[K], skipHistory?: boolean) => S;
 };
 
 export type HistoryItem<T, PU> = {
@@ -203,7 +212,7 @@ export type StateWithHistory<S, PBT extends PayloadConfigByType> = {
   effects: OriginalActionUnion<PBT>[];
 };
 
-export type UActions =
+export type MetaAction =
   | {
       type: 'undo';
     }
@@ -218,7 +227,11 @@ export type ReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   OriginalActionUnion<PBT>
 >;
 
+export type UReducerAction<PBT extends PayloadConfigByType> =
+  | MetaAction
+  | OriginalUActionUnion<PBT>;
+
 export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   StateWithHistory<S, PBT>,
-  UActions | OriginalUActionUnion<PBT>
+  UReducerAction<PBT>
 >;
