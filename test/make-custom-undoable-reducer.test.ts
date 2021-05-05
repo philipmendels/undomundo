@@ -20,7 +20,7 @@ const { uReducer, actionCreators } = makeCustomUndoableReducer<State, PBT>({
 const { addToCount, updateCount } = actionCreators;
 
 describe('makeCustomUndoableReducer', () => {
-  let stateWithHist: StateWithHistory<State, PBT> = {
+  let uState: StateWithHistory<State, PBT> = {
     effects: [],
     history: {
       stack: [],
@@ -31,26 +31,36 @@ describe('makeCustomUndoableReducer', () => {
     },
   };
   it('update works', () => {
-    stateWithHist = uReducer(stateWithHist, addToCount(3));
-    expect(stateWithHist.state.count).toEqual(6);
+    uState = uReducer(uState, addToCount(3));
+    expect(uState.state.count).toBe(6);
 
-    stateWithHist = uReducer(stateWithHist, updateCount(4));
-    expect(stateWithHist.state.count).toEqual(4);
+    uState = uReducer(uState, updateCount(4));
+    expect(uState.state.count).toBe(4);
   });
 
   it('undo works', () => {
-    stateWithHist = uReducer(stateWithHist, undo());
-    expect(stateWithHist.state.count).toEqual(6);
+    uState = uReducer(uState, undo());
+    expect(uState.state.count).toBe(6);
 
-    stateWithHist = uReducer(stateWithHist, undo());
-    expect(stateWithHist.state.count).toEqual(3);
+    uState = uReducer(uState, undo());
+    expect(uState.state.count).toBe(3);
   });
 
   it('redo works', () => {
-    stateWithHist = uReducer(stateWithHist, redo());
-    expect(stateWithHist.state.count).toEqual(6);
+    uState = uReducer(uState, redo());
+    expect(uState.state.count).toBe(6);
 
-    stateWithHist = uReducer(stateWithHist, redo());
-    expect(stateWithHist.state.count).toEqual(4);
+    uState = uReducer(uState, redo());
+    expect(uState.state.count).toBe(4);
+  });
+
+  it('skip history works', () => {
+    const prevUState = uState;
+    uState = uReducer(uState, addToCount(9, true));
+    expect(uState.state.count).toBe(13);
+
+    uState = uReducer(uState, updateCount(33, true));
+    expect(uState.state.count).toBe(33);
+    expect(uState.history).toBe(prevUState.history);
   });
 });

@@ -121,7 +121,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       return stateWithHist;
     } else {
       const config = configs[type];
-      const skip = !config || meta?.skipHistory;
+      const skipHistory = !config || meta?.skipHistory;
 
       if (config && isUndoConfigAbsolute<S, PBT>(config)) {
         // TODO: is this optimization safe?
@@ -133,7 +133,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       return pipe(
         stateWithHist,
         evolve({
-          history: skip
+          history: skipHistory
             ? identity
             : evolve({
                 index: add1,
@@ -147,7 +147,9 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                 ),
               }),
           state: () => newState,
-          effects: skip ? identity : append(originalAction),
+          // TODO: is check for !config necessary here?
+          // If used with Redux this reducer may receive unrelated actions.
+          effects: !config ? identity : append(originalAction),
         })
       );
     }

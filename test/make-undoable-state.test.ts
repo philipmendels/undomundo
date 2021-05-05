@@ -39,13 +39,13 @@ const { undoables, undo, redo, getCurrentState } = makeUndoableState<
 const { updateCount } = undoables;
 
 const expectGetCurrentStateEquals = () =>
-  expect(newState).toEqual(getCurrentState());
+  expect(newState).toBe(getCurrentState());
 
 describe('makeUndoableState', () => {
   it('update works', () => {
     const oldState = newState;
     newState = updateCount(4);
-    expect(newState.state.count).toEqual(4);
+    expect(newState.state.count).toBe(4);
     expectGetCurrentStateEquals();
     expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'updateCount', payload: 4 },
@@ -57,7 +57,7 @@ describe('makeUndoableState', () => {
   it('undo works', () => {
     const oldState = newState;
     newState = undo();
-    expect(newState.state.count).toEqual(2);
+    expect(newState.state.count).toBe(2);
     expectGetCurrentStateEquals();
     expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'undo' },
@@ -69,7 +69,7 @@ describe('makeUndoableState', () => {
   it('redo works', () => {
     const oldState = newState;
     newState = redo();
-    expect(newState.state.count).toEqual(4);
+    expect(newState.state.count).toBe(4);
     expectGetCurrentStateEquals();
     expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'redo' },
