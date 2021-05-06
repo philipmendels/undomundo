@@ -45,7 +45,7 @@ describe('makeUndoableReducer', () => {
 
   it('skip history works', () => {
     const prevUState = uState;
-    uState = uReducer(uState, updateCount(33, true));
+    uState = uReducer(uState, updateCount(33, { skipHistory: true }));
     expect(uState.state.count).toBe(33);
     expect(uState.history).toBe(prevUState.history);
   });

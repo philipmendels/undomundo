@@ -40,7 +40,7 @@ export type ActionUnion<PBT extends StringMap> = ValueOf<
 >;
 
 export type UAction<T, P> = Action<T, P> & {
-  meta?: { skipHistory?: boolean };
+  meta?: UOptions;
 };
 
 export type UActionUnion<PBT extends StringMap> = ValueOf<
@@ -159,15 +159,17 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
 };
 
+type UOptions = {
+  skipHistory?: boolean;
+  skipEffects?: boolean;
+};
+
 export type UActionCreatorsByType<PBT extends StringMap> = {
-  [K in keyof PBT]: (
-    payload: PBT[K],
-    skipHistory?: boolean
-  ) => UAction<K, PBT[K]>;
+  [K in keyof PBT]: (payload: PBT[K], options?: UOptions) => UAction<K, PBT[K]>;
 };
 
 export type PayloadHandlersByType<S, PBT extends StringMap> = {
-  [K in keyof PBT]: (p: PBT[K], skipHistory?: boolean) => S;
+  [K in keyof PBT]: (p: PBT[K], options?: UOptions) => S;
 };
 
 export type HistoryItem<T, PU> = {

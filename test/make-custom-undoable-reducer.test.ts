@@ -30,6 +30,7 @@ describe('makeCustomUndoableReducer', () => {
       count: 3,
     },
   };
+
   it('update works', () => {
     uState = uReducer(uState, addToCount(3));
     expect(uState.state.count).toBe(6);
@@ -56,10 +57,10 @@ describe('makeCustomUndoableReducer', () => {
 
   it('skip history works', () => {
     const prevUState = uState;
-    uState = uReducer(uState, addToCount(9, true));
+    uState = uReducer(uState, addToCount(9, { skipHistory: true }));
     expect(uState.state.count).toBe(13);
 
-    uState = uReducer(uState, updateCount(33, true));
+    uState = uReducer(uState, updateCount(33, { skipHistory: true }));
     expect(uState.state.count).toBe(33);
     expect(uState.history).toBe(prevUState.history);
   });

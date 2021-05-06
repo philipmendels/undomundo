@@ -23,9 +23,9 @@ export const makeCustomUndoableReducer = <S, PBT extends PayloadConfigByType>(
     uReducer: wrapReducer<S, PBT>(reducer, configs),
     actionCreators: mapRecord(actionCreators)<
       UActionCreatorsByType<PayloadOriginalByType<PBT>>
-    >(ac => (payload, skipHistory) => ({
+    >(ac => (payload, options) => ({
       ...ac(payload),
-      ...(skipHistory && { meta: { skipHistory } }),
+      ...(options && { meta: options }),
     })),
   };
 };

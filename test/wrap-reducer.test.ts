@@ -1,18 +1,52 @@
-import { StateWithHistory } from '../src/types';
-import { PBT, State, uReducer } from './shared';
+import { negate } from 'fp-ts-std/Number';
+import { pipe } from 'fp-ts/lib/function';
+import { wrapReducer } from '../src';
+import { getDefaultUndoConfigAbsolute } from '../src/helpers';
+import { Reducer, StateWithHistory } from '../src/types';
+import { add, evolve, merge } from '../src/util';
+import { PBT, State } from './shared';
+
+type Actions =
+  | {
+      type: 'addToCount';
+      payload: number;
+    }
+  | {
+      type: 'updateCount';
+      payload: number;
+    };
+
+let uState: StateWithHistory<State, PBT> = {
+  effects: [],
+  history: {
+    stack: [],
+    index: -1,
+  },
+  state: {
+    count: 3,
+  },
+};
+
+const reducer: Reducer<State, Actions> = (state, action) => {
+  if (action.type === 'addToCount') {
+    const { payload } = action;
+    // just for testing if referentially equal state is ignored
+    return payload === 0 ? state : pipe(state, evolve({ count: add(payload) }));
+  }
+  if (action.type === 'updateCount') {
+    return pipe(state, merge({ count: action.payload }));
+  }
+  return state;
+};
+
+const uReducer = wrapReducer<State, PBT>(reducer, {
+  addToCount: {
+    undo: evolve({ payload: negate }),
+  },
+  updateCount: getDefaultUndoConfigAbsolute(state => _ => state.count),
+});
 
 describe('wrapReducer', () => {
-  let uState: StateWithHistory<State, PBT> = {
-    effects: [],
-    history: {
-      stack: [],
-      index: -1,
-    },
-    state: {
-      count: 3,
-    },
-  };
-
   it('update works', () => {
     uState = uReducer(uState, {
       type: 'addToCount',
@@ -177,4 +211,7 @@ describe('wrapReducer', () => {
       ])
     );
   });
+
+  // TODO: test skipEffects
+  // TODO: test history rewrite
 });
