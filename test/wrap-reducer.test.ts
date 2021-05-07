@@ -212,6 +212,44 @@ describe('wrapReducer', () => {
     );
   });
 
-  // TODO: test skipEffects
+  it('skip effects works', () => {
+    const prevUState = uState;
+    uState = uReducer(uState, {
+      type: 'addToCount',
+      payload: 2,
+      meta: {
+        skipEffects: true,
+      },
+    });
+    expect(uState.state.count).toBe(35);
+
+    uState = uReducer(uState, {
+      type: 'updateCount',
+      payload: 99,
+      meta: {
+        skipEffects: true,
+      },
+    });
+    expect(uState.state.count).toBe(99);
+
+    expect(uState.effects).toBe(prevUState.effects);
+    expect(uState.history).toStrictEqual<typeof uState.history>({
+      index: prevUState.history.index + 2,
+      stack: prevUState.history.stack.concat([
+        {
+          payload: 2,
+          type: 'addToCount',
+        },
+        {
+          payload: {
+            undo: 35,
+            redo: 99,
+          },
+          type: 'updateCount',
+        },
+      ]),
+    });
+  });
+
   // TODO: test history rewrite
 });
