@@ -251,5 +251,106 @@ describe('wrapReducer', () => {
     });
   });
 
-  // TODO: test history rewrite
+  it('history rewrite works on undo', () => {
+    uState = {
+      effects: [],
+      history: {
+        stack: [],
+        index: -1,
+      },
+      state: {
+        count: 2,
+      },
+    };
+
+    uState = uReducer(uState, {
+      type: 'updateCount',
+      payload: 4,
+    });
+
+    uState = uReducer(uState, {
+      type: 'addToCount',
+      payload: 3,
+    });
+
+    // external update of state:
+    uState = uReducer(uState, {
+      type: 'updateCount',
+      payload: 9,
+      meta: { skipEffects: true, skipHistory: true },
+    });
+
+    expect(uState.history).toStrictEqual<typeof uState.history>({
+      index: 1,
+      stack: [
+        {
+          payload: {
+            undo: 2,
+            redo: 4,
+          },
+          type: 'updateCount',
+        },
+        {
+          payload: 3,
+          type: 'addToCount',
+        },
+      ],
+    });
+
+    uState = uReducer(uState, { type: 'undo' });
+    expect(uState.state.count).toBe(6);
+
+    uState = uReducer(uState, { type: 'undo' });
+    expect(uState.state.count).toBe(2);
+
+    // redo in absolute payload is rewritten on undo:
+    expect(uState.history).toStrictEqual<typeof uState.history>({
+      index: -1,
+      stack: [
+        {
+          payload: {
+            undo: 2,
+            redo: 6, // rewritten
+          },
+          type: 'updateCount',
+        },
+        {
+          payload: 3,
+          type: 'addToCount',
+        },
+      ],
+    });
+  });
+
+  it('history rewrite works on redo', () => {
+    // external update of state:
+    uState = uReducer(uState, {
+      type: 'updateCount',
+      payload: -4,
+      meta: { skipEffects: true, skipHistory: true },
+    });
+
+    uState = uReducer(uState, { type: 'redo' });
+    expect(uState.state.count).toBe(6);
+    uState = uReducer(uState, { type: 'redo' });
+    expect(uState.state.count).toBe(9);
+
+    // undo in absolute payload is rewritten on redo:
+    expect(uState.history).toStrictEqual<typeof uState.history>({
+      index: 1,
+      stack: [
+        {
+          payload: {
+            undo: -4, // rewritten
+            redo: 6,
+          },
+          type: 'updateCount',
+        },
+        {
+          payload: 3,
+          type: 'addToCount',
+        },
+      ],
+    });
+  });
 });
