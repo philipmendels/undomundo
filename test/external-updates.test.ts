@@ -6,9 +6,37 @@ import {
   ActionUnion,
   StateWithHistory,
   PayloadOriginalByType,
+  UndoRedoConfigByType,
+  PayloadConfigUndoRedo,
+  undoConfigAsRelative,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
-import { State, PBT } from './shared';
+import { State } from './shared';
+
+type PBT = {
+  updateCount: PayloadConfigUndoRedo<number>;
+  addToCount: {
+    original: number;
+  };
+  multiplyCount: {
+    original: number;
+  };
+};
+
+const configs: UndoRedoConfigByType<State, PBT> = {
+  addToCount: {
+    undo: evolve({ payload: negate }),
+    updateState: amount => evolve({ count: add(amount) }),
+  },
+  multiplyCount: {
+    undo: evolve({ payload: p => 1 / p }),
+    updateState: amount => evolve({ count: prev => prev * amount }),
+  },
+  updateCount: getDefaultUndoRedoConfigAbsolute(
+    state => _ => state.count,
+    count => merge({ count })
+  ),
+};
 
 const createClient = () => {
   let uState: StateWithHistory<State, PBT> = {
@@ -21,18 +49,12 @@ const createClient = () => {
       count: 0,
     },
   };
-  const { uReducer, actionCreators } = makeCustomUndoableReducer<State, PBT>({
-    addToCount: {
-      undo: evolve({ payload: negate }),
-      updateState: amount => evolve({ count: add(amount) }),
-    },
-    updateCount: getDefaultUndoRedoConfigAbsolute(
-      state => _ => state.count,
-      count => merge({ count })
-    ),
-  });
 
-  const { addToCount, updateCount } = actionCreators;
+  const { uReducer, actionCreators } = makeCustomUndoableReducer<State, PBT>(
+    configs
+  );
+
+  const { addToCount, updateCount, multiplyCount } = actionCreators;
 
   return {
     getCurrentState: () => uState,
@@ -58,6 +80,9 @@ const createClient = () => {
     addToCount: (amount: number) => {
       uState = uReducer(uState, addToCount(amount));
     },
+    multiplyCount: (amount: number) => {
+      uState = uReducer(uState, multiplyCount(amount));
+    },
     undo: () => {
       uState = uReducer(uState, undo());
     },
@@ -67,7 +92,7 @@ const createClient = () => {
   };
 };
 
-describe('effects without conflicts', () => {
+describe('syncing actions without conflicts', () => {
   const client1 = createClient();
   const client2 = createClient();
   const sync1to2 = () => client2.push(client1.pull());
@@ -134,14 +159,12 @@ describe('effects without conflicts', () => {
   });
 });
 
-// Very basic implementation, without optimization / anti-flicker.
-// Updates are always applied twice due to confirmation step, therefore
-// it only works for absolute payloads (not for deltas).
-describe('last write wins', () => {
+describe('syncing actions with conflicts ', () => {
   const client1 = createClient();
   const client2 = createClient();
   let serverHist: ActionUnion<PayloadOriginalByType<PBT>>[] = [];
-  it('works as expected', () => {
+
+  it('conflicts are resolved for all-absolute payloads', () => {
     client1.updateCount(3);
     let s1 = client1.getCurrentState();
     expect(s1.state.count).toEqual(3);
@@ -151,6 +174,10 @@ describe('last write wins', () => {
     let s2 = client2.getCurrentState();
     expect(s2.state.count).toEqual(7);
     const effects2 = client2.pull();
+
+    // Very basic implementation without the need to revert out-of-sync actions.
+    // Actions are always applied twice due to confirmation step, therefore
+    // it only works if all the payloads of the out-of-sync actions are absolute.
 
     serverHist = [...serverHist, ...effects2];
     client1.push(effects2); // sync
@@ -164,5 +191,56 @@ describe('last write wins', () => {
     s2 = client2.getCurrentState();
     expect(s1.state.count).toEqual(3);
     expect(s2.state.count).toEqual(3);
+  });
+
+  it('conflicts are resolved for relative payloads', () => {
+    client1.addToCount(2);
+    let s1 = client1.getCurrentState();
+    expect(s1.state.count).toEqual(5);
+    const effects1 = client1.pull();
+
+    client2.multiplyCount(3);
+    let s2 = client2.getCurrentState();
+    expect(s2.state.count).toEqual(9);
+    const effects2 = client2.pull();
+
+    serverHist = [...serverHist, ...effects1];
+    serverHist = [...serverHist, ...effects2];
+
+    client1.push(effects2); // sync
+
+    // Client 2 is out-of-sync. The actions in client 2 that are out-of-sync
+    // need to be reverted, then the actions of client 1 need to be synced to
+    // client 2, and then the actions of client 2 need to be re-applied.
+    //
+    // The next line reverts the last action correctly but leads to the wrong undo-history:
+    // client2.undo().
+    //
+    // Instead let's revert the actions manually. In this crude example we can only revert
+    // the relative actions because we are mapping over the effects (which lack the
+    // the absolute undo-redo payloads). Normally this should happen on the client and
+    // there we should probably map over the actions in the undo history which do have
+    // the absolute payloads.
+    client2.push(
+      effects2.map(({ type, payload }) =>
+        undoConfigAsRelative<PBT>(configs[type]).undo({ type, payload })
+      )
+    );
+
+    s2 = client2.getCurrentState();
+
+    expect(s2.state.count).toEqual(3);
+
+    // Should the actions that were reverted be removed from the undo history
+    // of client 2? Probably not because they did happen, even though their result
+    // was perhaps only visible for a very short while.
+
+    client2.push(effects1); // sync
+    client2.push(effects2); // re-apply
+
+    s1 = client1.getCurrentState();
+    s2 = client2.getCurrentState();
+    expect(s1.state.count).toEqual(15);
+    expect(s2.state.count).toEqual(15);
   });
 });
