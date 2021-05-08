@@ -231,10 +231,6 @@ describe('syncing actions with conflicts ', () => {
 
     expect(s2.state.count).toEqual(3);
 
-    // Should the actions that were reverted be removed from the undo history
-    // of client 2? Probably not because they did happen, even though their result
-    // was perhaps only visible for a very short while.
-
     client2.push(effects1); // sync
     client2.push(effects2); // re-apply
 
@@ -242,5 +238,17 @@ describe('syncing actions with conflicts ', () => {
     s2 = client2.getCurrentState();
     expect(s1.state.count).toEqual(15);
     expect(s2.state.count).toEqual(15);
+
+    // Should the actions that were reverted be removed from the undo history
+    // of client 2? Probably not because they did happen, even though their result
+    // was perhaps only visible for a very short while.
+
+    client1.undo(); // + -2
+    client2.undo(); // * 1/3
+    s1 = client1.getCurrentState();
+    s2 = client2.getCurrentState();
+    // Results are conceptually strange but technically correct due to the relative payloads.
+    expect(s1.state.count).toEqual(13);
+    expect(s2.state.count).toEqual(5);
   });
 });
