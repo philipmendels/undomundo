@@ -1,9 +1,9 @@
 import { invert } from 'fp-ts-std/Boolean';
 import { when } from 'fp-ts-std/Function';
-import { flow } from 'fp-ts/function';
+import { flow, pipe } from 'fp-ts/function';
 import { filter, map, mapWithIndex } from 'fp-ts/Record';
 import { makeCustomUndoableReducer } from '../src';
-import { undo } from '../src/action-creators';
+import { redo, undo } from '../src/action-creators';
 import { getDefaultUndoRedoConfigAbsolute } from '../src/helpers';
 import {
   UndoRedoConfigByType,
@@ -12,7 +12,7 @@ import {
 } from '../src/types';
 import { evolve, merge } from '../src/util';
 
-type Color = 'red' | 'blue';
+type Color = 'red' | 'green' | 'blue';
 
 type ID = string;
 
@@ -30,9 +30,11 @@ type CardsPayloadConfig = {
 };
 
 type PBT = {
-  changeColor: PayloadConfigUndoRedo<Record<ID, Color>>;
+  setColor: PayloadConfigUndoRedo<Record<ID, Color>>;
   add: CardsPayloadConfig;
   remove: CardsPayloadConfig;
+  // TODO: for set: card | null ?
+  set: PayloadConfigUndoRedo<Record<ID, Card>>;
 };
 
 type ObjWithId = {
@@ -44,29 +46,52 @@ const isIdInSelection = (selection: Record<ID, unknown>) => <
   T extends ObjWithId
 >(
   item: T
-) => selection[item.id] !== undefined;
+) => selection.hasOwnProperty(item.id);
 
 const updateSelected = <T extends ObjWithId>(
   selection: Record<ID, unknown>,
   whenTrueFn: (a: T) => T
 ) => map<T, T>(when(isIdInSelection(selection))(whenTrueFn));
 
-const updatePropOfSelected = <T extends ObjWithId>(
-  selection: Record<ID, unknown>,
-  prop: keyof T
-) =>
-  updateSelected<T>(selection, obj => ({ ...obj, [prop]: selection[obj.id] }));
+const mapPayloadToProp = <T extends ObjWithId, K extends keyof T>(
+  payload: Record<ID, T[K]>,
+  prop: K
+) => updateSelected<T>(payload, obj => ({ ...obj, [prop]: payload[obj.id] }));
 
 const configs: UndoRedoConfigByType<State, PBT> = {
-  changeColor: getDefaultUndoRedoConfigAbsolute(
+  setColor: getDefaultUndoRedoConfigAbsolute(
     state =>
       mapWithIndex((id, color) =>
         state.cards[id] ? state.cards[id].color : color
       ),
     payload =>
       evolve({
-        cards: updatePropOfSelected(payload, 'color'),
+        cards: mapPayloadToProp(payload, 'color'),
       })
+  ),
+  set: getDefaultUndoRedoConfigAbsolute(
+    state =>
+      mapWithIndex(id =>
+        state.cards[id] === undefined
+          ? ((null as any) as Card)
+          : state.cards[id]
+      ),
+    payload => {
+      const removed = pipe(
+        payload,
+        filter(item => item === null)
+      );
+      const updated = pipe(
+        payload,
+        filter(item => item !== null)
+      );
+      return evolve({
+        cards: flow(
+          filter(flow(isIdInSelection(removed), invert)),
+          merge(updated)
+        ),
+      });
+    }
   ),
   add: {
     updateState: payload => evolve({ cards: merge(payload) }),
@@ -81,7 +106,7 @@ const configs: UndoRedoConfigByType<State, PBT> = {
 
 const { uReducer, actionCreators } = makeCustomUndoableReducer(configs);
 
-const { changeColor, remove } = actionCreators;
+const { setColor, add, remove, set } = actionCreators;
 
 let uState: StateWithHistory<State, PBT> = {
   effects: [],
@@ -131,8 +156,23 @@ describe('multi-select', () => {
     },
   };
 
+  const s3: Record<ID, Card> = {
+    c: {
+      id: 'c',
+      color: 'blue',
+    },
+    d: {
+      id: 'd',
+      color: 'green',
+    },
+    e: {
+      id: 'e',
+      color: 'red',
+    },
+  };
+
   it('update works', () => {
-    uState = uReducer(uState, changeColor({ a: 'blue', c: 'blue' }));
+    uState = uReducer(uState, setColor({ a: 'blue', c: 'blue' }));
 
     expect(uState.state.cards).toStrictEqual(s1);
 
@@ -151,13 +191,73 @@ describe('multi-select', () => {
     );
 
     expect(uState.state.cards).toStrictEqual(s2);
+
+    uState = uReducer(
+      uState,
+      add({
+        d: {
+          id: 'd',
+          color: 'green',
+        },
+        e: {
+          id: 'e',
+          color: 'red',
+        },
+      })
+    );
+
+    expect(uState.state.cards).toStrictEqual(s3);
   });
 
   it('undo works', () => {
+    uState = uReducer(uState, undo());
+    expect(uState.state.cards).toStrictEqual(s2);
+
     uState = uReducer(uState, undo());
     expect(uState.state.cards).toStrictEqual(s1);
 
     uState = uReducer(uState, undo());
     expect(uState.state.cards).toStrictEqual(s0);
+  });
+
+  it('redo works', () => {
+    uState = uReducer(uState, redo());
+    expect(uState.state.cards).toStrictEqual(s1);
+
+    uState = uReducer(uState, redo());
+    expect(uState.state.cards).toStrictEqual(s2);
+
+    uState = uReducer(uState, redo());
+    expect(uState.state.cards).toStrictEqual(s3);
+  });
+
+  it('set works', () => {
+    uState = uReducer(uState, undo());
+    uState = uReducer(uState, undo());
+    uState = uReducer(
+      uState,
+      set({
+        a: null as any,
+        b: null as any,
+      })
+    );
+
+    expect(uState.state.cards).toStrictEqual(s2);
+
+    uState = uReducer(
+      uState,
+      set({
+        d: {
+          id: 'd',
+          color: 'green',
+        },
+        e: {
+          id: 'e',
+          color: 'red',
+        },
+      })
+    );
+
+    expect(uState.state.cards).toStrictEqual(s3);
   });
 });
