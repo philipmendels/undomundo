@@ -33,8 +33,7 @@ type PBT = {
   setColor: PayloadConfigUndoRedo<Record<ID, Color>>;
   add: CardsPayloadConfig;
   remove: CardsPayloadConfig;
-  // TODO: for set: card | null ?
-  set: PayloadConfigUndoRedo<Record<ID, Card>>;
+  set: PayloadConfigUndoRedo<Record<ID, Card | null>>;
 };
 
 type ObjWithId = {
@@ -58,6 +57,17 @@ const mapPayloadToProp = <T extends ObjWithId, K extends keyof T>(
   prop: K
 ) => updateSelected<T>(payload, obj => ({ ...obj, [prop]: payload[obj.id] }));
 
+const splitPayload = (payload: Record<ID, Card | null>) => ({
+  removed: pipe(
+    payload,
+    filter(item => item === null)
+  ),
+  updated: pipe(
+    payload,
+    filter(item => item !== null)
+  ) as Record<ID, Card>,
+});
+
 const configs: UndoRedoConfigByType<State, PBT> = {
   setColor: getDefaultUndoRedoConfigAbsolute(
     state =>
@@ -72,19 +82,10 @@ const configs: UndoRedoConfigByType<State, PBT> = {
   set: getDefaultUndoRedoConfigAbsolute(
     state =>
       mapWithIndex(id =>
-        state.cards[id] === undefined
-          ? ((null as any) as Card)
-          : state.cards[id]
+        state.cards[id] === undefined ? null : state.cards[id]
       ),
     payload => {
-      const removed = pipe(
-        payload,
-        filter(item => item === null)
-      );
-      const updated = pipe(
-        payload,
-        filter(item => item !== null)
-      );
+      const { removed, updated } = splitPayload(payload);
       return evolve({
         cards: flow(
           filter(flow(isIdInSelection(removed), invert)),
@@ -237,8 +238,8 @@ describe('multi-select', () => {
     uState = uReducer(
       uState,
       set({
-        a: null as any,
-        b: null as any,
+        a: null,
+        b: null,
       })
     );
 
