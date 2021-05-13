@@ -4,7 +4,10 @@ import { flow, pipe } from 'fp-ts/function';
 import { filter, map, mapWithIndex } from 'fp-ts/Record';
 import { makeCustomUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
-import { getDefaultUndoRedoConfigAbsolute } from '../src/helpers';
+import {
+  makeAbsoluteUndoRedoConfig,
+  makeRelativeUndoRedoConfig,
+} from '../src/helpers';
 import {
   UndoRedoConfigByType,
   PayloadConfigUndoRedo,
@@ -27,6 +30,7 @@ type State = {
 
 type CardsPayloadConfig = {
   original: Record<ID, Card>;
+  undoRedo: Record<ID, Card>;
 };
 
 type PBT = {
@@ -69,22 +73,22 @@ const splitPayload = (payload: Record<ID, Card | null>) => ({
 });
 
 const configs: UndoRedoConfigByType<State, PBT> = {
-  setColor: getDefaultUndoRedoConfigAbsolute(
-    state =>
+  setColor: makeAbsoluteUndoRedoConfig({
+    updatePayload: state =>
       mapWithIndex((id, color) =>
         state.cards[id] ? state.cards[id].color : color
       ),
-    payload =>
+    updateState: payload =>
       evolve({
         cards: mapPayloadToProp(payload, 'color'),
-      })
-  ),
-  set: getDefaultUndoRedoConfigAbsolute(
-    state =>
+      }),
+  }),
+  set: makeAbsoluteUndoRedoConfig({
+    updatePayload: state =>
       mapWithIndex(id =>
         state.cards[id] === undefined ? null : state.cards[id]
       ),
-    payload => {
+    updateState: payload => {
       const { removed, updated } = splitPayload(payload);
       return evolve({
         cards: flow(
@@ -92,17 +96,17 @@ const configs: UndoRedoConfigByType<State, PBT> = {
           merge(updated)
         ),
       });
-    }
-  ),
-  add: {
+    },
+  }),
+  add: makeRelativeUndoRedoConfig({
     updateState: payload => evolve({ cards: merge(payload) }),
-    undo: ({ payload }) => ({ type: 'remove', payload }),
-  },
-  remove: {
+    getActionForUndo: ({ payload }) => ({ type: 'remove', payload }),
+  }),
+  remove: makeRelativeUndoRedoConfig({
     updateState: payload =>
       evolve({ cards: filter(flow(isIdInSelection(payload), invert)) }),
-    undo: ({ payload }) => ({ type: 'add', payload }),
-  },
+    getActionForUndo: ({ payload }) => ({ type: 'add', payload }),
+  }),
 };
 
 const { uReducer, actionCreators } = makeCustomUndoableReducer(configs);

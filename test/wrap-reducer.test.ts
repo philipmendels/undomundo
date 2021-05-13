@@ -1,7 +1,7 @@
 import { negate } from 'fp-ts-std/Number';
 import { pipe } from 'fp-ts/lib/function';
 import { wrapReducer } from '../src';
-import { getDefaultUndoConfigAbsolute } from '../src/helpers';
+import { makeAbsoluteUndoConfig, makeRelativeUndoConfig } from '../src/helpers';
 import { Reducer, StateWithHistory } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { PBT, State } from './shared';
@@ -40,10 +40,12 @@ const reducer: Reducer<State, Actions> = (state, action) => {
 };
 
 const uReducer = wrapReducer<State, PBT>(reducer, {
-  addToCount: {
-    undo: evolve({ payload: negate }),
-  },
-  updateCount: getDefaultUndoConfigAbsolute(state => _ => state.count),
+  addToCount: makeRelativeUndoConfig({
+    getActionForUndo: evolve({ payload: negate }),
+  }),
+  updateCount: makeAbsoluteUndoConfig({
+    updatePayload: state => _ => state.count,
+  }),
 });
 
 describe('wrapReducer', () => {
@@ -60,6 +62,7 @@ describe('wrapReducer', () => {
     });
 
     expect(uState.state.count).toBe(4);
+
     expect(uState.history).toStrictEqual<typeof uState.history>({
       index: 1,
       stack: [
@@ -157,7 +160,7 @@ describe('wrapReducer', () => {
     expect(uState).toBe(prevUState);
   });
 
-  it('ignores relative update that leads to referentially equal state', () => {
+  it('ignores update that leads to referentially equal state', () => {
     const prevUState = uState;
     uState = uReducer(uState, {
       type: 'addToCount',
@@ -167,15 +170,15 @@ describe('wrapReducer', () => {
     expect(uState.effects).toBe(prevUState.effects);
   });
 
-  it('ignores absolute update that leads to referentially equal state', () => {
-    const prevUState = uState;
-    uState = uReducer(uState, {
-      type: 'updateCount',
-      payload: prevUState.state.count,
-    });
-    expect(uState.history).toBe(prevUState.history);
-    expect(uState.effects).toBe(prevUState.effects);
-  });
+  // it('ignores absolute update that leads to referentially equal state', () => {
+  //   const prevUState = uState;
+  //   uState = uReducer(uState, {
+  //     type: 'updateCount',
+  //     payload: prevUState.state.count,
+  //   });
+  //   expect(uState.history).toBe(prevUState.history);
+  //   expect(uState.effects).toBe(prevUState.effects);
+  // });
 
   it('skip history works', () => {
     const prevUState = uState;

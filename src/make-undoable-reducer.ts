@@ -1,4 +1,4 @@
-import { getDefaultUndoRedoConfigAbsolute } from './helpers';
+import { makeAbsoluteUndoRedoConfig } from './helpers';
 import { makeCustomUndoableReducer } from './make-custom-undoable-reducer';
 import {
   DefaultUndoRedoConfigByType,
@@ -13,12 +13,8 @@ export const makeUndoableReducer = <S, M extends StringMap>(
 ) => {
   type PBT = ToPayloadConfigByType<M>;
   return makeCustomUndoableReducer<S, PBT>(
-    mapRecord(configs)<UndoRedoConfigByType<S, PBT>>(
-      config =>
-        getDefaultUndoRedoConfigAbsolute(
-          config.updatePayload,
-          config.updateState
-        ) as any
+    mapRecord(configs)<UndoRedoConfigByType<S, PBT>>(config =>
+      makeAbsoluteUndoRedoConfig(config as any)
     )
   );
 };

@@ -1,20 +1,23 @@
 import { negate } from 'fp-ts-std/Number';
 import { redo, undo } from '../src/action-creators';
-import { getDefaultUndoRedoConfigAbsolute } from '../src/helpers';
+import {
+  makeAbsoluteUndoRedoConfig,
+  makeRelativeUndoRedoConfig,
+} from '../src/helpers';
 import { makeCustomUndoableReducer } from '../src/make-custom-undoable-reducer';
 import { StateWithHistory } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { State, PBT } from './shared';
 
 const { uReducer, actionCreators } = makeCustomUndoableReducer<State, PBT>({
-  addToCount: {
-    undo: evolve({ payload: negate }),
+  addToCount: makeRelativeUndoRedoConfig({
+    getActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
-  },
-  updateCount: getDefaultUndoRedoConfigAbsolute(
-    state => _ => state.count,
-    count => merge({ count })
-  ),
+  }),
+  updateCount: makeAbsoluteUndoRedoConfig({
+    updatePayload: state => _ => state.count,
+    updateState: count => merge({ count }),
+  }),
 });
 
 const { addToCount, updateCount } = actionCreators;
