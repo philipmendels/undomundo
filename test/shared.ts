@@ -9,5 +9,6 @@ export type PBT = {
   updateCount: PayloadConfigUndoRedo<number>;
   addToCount: {
     original: number;
+    undoRedo: number;
   };
 };

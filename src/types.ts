@@ -11,10 +11,7 @@ export type Action<T = string, P = any> = {
   payload: P;
 };
 
-export type PayloadConfigByType = Record<
-  string,
-  PayloadConfigRelative | PayloadConfigAbsolute
->;
+export type PayloadConfigByType = Record<string, PayloadConfigAbsolute>;
 
 export type ToPayloadConfigByType<PBT extends StringMap> = {
   [K in keyof PBT]: PayloadConfigUndoRedo<PBT[K]>;
@@ -57,26 +54,6 @@ export type OriginalUActionUnion<
   PBT extends PayloadConfigByType
 > = UActionUnion<PayloadOriginalByType<PBT>>;
 
-export type AbsoluteValueOf<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: PBT[K] extends PayloadConfigAbsolute ? PBT[K] : never;
-  }
->;
-
-// export type RelativeValueOf<PBT extends PayloadConfigByType> = ValueOf<
-//   {
-//     [K in keyof PBT]: PBT[K] extends PayloadConfigAbsolute ? never : PBT[K];
-//   }
-// >;
-
-export const isUndoConfigAbsolute = <S, PBT extends PayloadConfigByType>(
-  item: any
-): item is UndoConfigAbsolute<
-  S,
-  AbsoluteValueOf<PBT>['original'],
-  AbsoluteValueOf<PBT>['undoRedo']
-> => (item as UndoConfigAbsolute<any, any, any>).boxUndoRedo !== undefined;
-
 export type PayloadMapping<PO, PUR> = {
   boxUndoRedo: (undo: PO, redo: PO) => PUR;
   getUndo: (payload: PUR) => PO;
@@ -86,35 +63,26 @@ export type PayloadMapping<PO, PUR> = {
 export type ActionConvertor<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = (action: Action<K, PBT[K]['original']>) => OriginalActionUnion<PBT>;
+> = (action: Action<K, PBT[K]['undoRedo']>) => OriginalActionUnion<PBT>;
 
-export type UndoConfigAbsolute<S, PO, PUR> = {
-  updatePayload: Updater<S, PO>;
-} & PayloadMapping<PO, PUR>;
-
-export type UndoConfigRelative<
-  PBT extends PayloadConfigByType,
-  K extends keyof PBT
-> = {
-  undo: ActionConvertor<PBT, K>;
-};
-
-type UndoConfig<
+export type UndoConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = PBT[K] extends PayloadConfigAbsolute
-  ? UndoConfigAbsolute<S, PBT[K]['original'], PBT[K]['undoRedo']>
-  : UndoConfigRelative<PBT, K>;
-
-export type UndoConfigByType<S, PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: UndoConfig<S, PBT, K>;
+> = {
+  initPayload: (state: S, original: PBT[K]['original']) => PBT[K]['undoRedo'];
+  getActionForUndo: ActionConvertor<PBT, K>;
+  getActionForRedo: ActionConvertor<PBT, K>;
+  updatePayloadOnUndo?: Updater<S, PBT[K]['undoRedo']>;
+  updatePayloadOnRedo?: Updater<S, PBT[K]['undoRedo']>;
 };
 
-export type UndoRedoConfigByType<S, PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: UndoConfig<S, PBT, K> & {
-    updateState: Updater<PBT[K]['original'], S>;
-  };
+export type UndoRedoConfig<
+  S,
+  PBT extends PayloadConfigByType,
+  K extends keyof PBT
+> = UndoConfig<S, PBT, K> & {
+  updateState: Updater<PBT[K]['original'], S>;
 };
 
 export type DefaultUndoRedoConfigByType<S, PBT extends StringMap> = {
@@ -124,22 +92,13 @@ export type DefaultUndoRedoConfigByType<S, PBT extends StringMap> = {
   };
 };
 
-export type UndoRedoConfigAbsolute<S, PO, PUR> = {
-  updateState: Updater<PO, S>;
-} & UndoConfigAbsolute<S, PO, PUR>;
+export type UndoConfigByType<S, PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: UndoConfig<S, PBT, K>;
+};
 
-// export const undoConfigAsAbsolute = <S, PBT extends PayloadConfigByType>(
-//   config: any
-// ) =>
-//   config as UndoConfigAbsolute<
-//     S,
-//     AbsoluteValueOf<PBT>['original'],
-//     AbsoluteValueOf<PBT>['undoRedo']
-//   >;
-
-export const undoConfigAsRelative = <PBT extends PayloadConfigByType>(
-  config: any
-) => config as UndoConfigRelative<PBT, keyof PBT>;
+export type UndoRedoConfigByType<S, PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: UndoRedoConfig<S, PBT, K>;
+};
 
 export type PayloadUndoRedo<T> = {
   undo: T;
@@ -179,31 +138,9 @@ export type HistoryItem<T, PU> = {
 
 export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
   {
-    [K in keyof PBT]: HistoryItem<
-      K,
-      PBT[K] extends PayloadConfigAbsolute
-        ? PBT[K]['undoRedo']
-        : PBT[K]['original']
-    >;
+    [K in keyof PBT]: HistoryItem<K, PBT[K]['undoRedo']>;
   }
 >;
-// | HistoryItem<'start', void>;
-
-// export type HistoryItemUnionRelative<PBT extends PayloadConfigByType> = ValueOf<
-//   {
-//     [K in keyof PBT]: PBT[K] extends PayloadConfigAbsolute
-//       ? never
-//       : HistoryItem<K, PBT[K]['original']>;
-//   }
-// >;
-
-// export type HistoryItemUnionAbsolute<PBT extends PayloadConfigByType> = ValueOf<
-//   {
-//     [K in keyof PBT]: PBT[K] extends PayloadConfigAbsolute
-//       ? HistoryItem<K, PBT[K]['undoRedo']>
-//       : never;
-//   }
-// >;
 
 export type StateWithHistory<S, PBT extends PayloadConfigByType> = {
   state: S;

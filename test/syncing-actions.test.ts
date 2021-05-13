@@ -1,14 +1,16 @@
 import { negate } from 'fp-ts-std/Number';
 import { makeCustomUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
-import { getDefaultUndoRedoConfigAbsolute } from '../src/helpers';
+import {
+  makeAbsoluteUndoRedoConfig,
+  makeRelativeUndoRedoConfig,
+} from '../src/helpers';
 import {
   ActionUnion,
   StateWithHistory,
   PayloadOriginalByType,
   UndoRedoConfigByType,
   PayloadConfigUndoRedo,
-  undoConfigAsRelative,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { State } from './shared';
@@ -17,25 +19,31 @@ type PBT = {
   updateCount: PayloadConfigUndoRedo<number>;
   addToCount: {
     original: number;
+    undoRedo: number;
   };
   multiplyCount: {
     original: number;
+    undoRedo: number;
   };
 };
 
 const configs: UndoRedoConfigByType<State, PBT> = {
-  addToCount: {
-    undo: evolve({ payload: negate }),
+  addToCount: makeRelativeUndoRedoConfig({
+    getActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
-  },
-  multiplyCount: {
-    undo: evolve({ payload: p => 1 / p }),
+  }),
+  // multiplyCount: makeAbsoluteUndoRedoConfig({
+  //   updatePayload: state => _ => state.count,
+  //   updateState: count => merge({ count }),
+  // }),
+  multiplyCount: makeRelativeUndoRedoConfig({
+    getActionForUndo: evolve({ payload: p => 1 / p }),
     updateState: amount => evolve({ count: prev => prev * amount }),
-  },
-  updateCount: getDefaultUndoRedoConfigAbsolute(
-    state => _ => state.count,
-    count => merge({ count })
-  ),
+  }),
+  updateCount: makeAbsoluteUndoRedoConfig({
+    updatePayload: state => _ => state.count,
+    updateState: count => merge({ count }),
+  }),
 };
 
 const createClient = () => {
@@ -223,7 +231,8 @@ describe('syncing actions with conflicts ', () => {
     // the absolute payloads.
     client2.push(
       effects2.map(({ type, payload }) =>
-        undoConfigAsRelative<PBT>(configs[type]).undo({ type, payload })
+        // TODO: typing
+        configs[type].getActionForUndo({ type, payload } as any)
       )
     );
 
