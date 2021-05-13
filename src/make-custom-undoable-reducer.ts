@@ -16,7 +16,7 @@ export const makeCustomUndoableReducer = <S, PBT extends PayloadConfigByType>(
     PayloadOriginalByType<PBT>
   >(
     mapRecord(configs)<UpdatersByType<S, PayloadOriginalByType<PBT>>>(
-      config => config.updateState
+      config => config.updateStateOnRedo
     )
   );
   return {

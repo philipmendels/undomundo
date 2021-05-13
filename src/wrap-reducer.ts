@@ -94,7 +94,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                 index: add1,
                 stack: append({
                   type,
-                  payload: config.initPayload(state, payload),
+                  payload: config.initPayload(state)(payload),
                 }),
               }),
           state: () => newState,
