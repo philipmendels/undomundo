@@ -32,10 +32,6 @@ const configs: UndoRedoConfigByType<State, PBT> = {
     getActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
   }),
-  // multiplyCount: makeAbsoluteUndoRedoConfig({
-  //   updatePayload: state => _ => state.count,
-  //   updateState: count => merge({ count }),
-  // }),
   multiplyCount: makeRelativeUndoRedoConfig({
     getActionForUndo: evolve({ payload: p => 1 / p }),
     updateState: amount => evolve({ count: prev => prev * amount }),

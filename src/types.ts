@@ -11,17 +11,13 @@ export type Action<T = string, P = any> = {
   payload: P;
 };
 
-export type PayloadConfigByType = Record<string, PayloadConfigAbsolute>;
+export type PayloadConfigByType = Record<string, PayloadConfig>;
 
 export type ToPayloadConfigByType<PBT extends StringMap> = {
   [K in keyof PBT]: PayloadConfigUndoRedo<PBT[K]>;
 };
 
-export type PayloadConfigRelative<PO = any> = {
-  original: PO;
-};
-
-export type PayloadConfigAbsolute<PO = any, PUR = any> = {
+export type PayloadConfig<PO = any, PUR = any> = {
   original: PO;
   undoRedo: PUR;
 };
@@ -70,7 +66,9 @@ export type UndoConfig<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = {
-  initPayload: (state: S, original: PBT[K]['original']) => PBT[K]['undoRedo'];
+  initPayload: (
+    state: S
+  ) => (original: PBT[K]['original']) => PBT[K]['undoRedo'];
   getActionForUndo: ActionConvertor<PBT, K>;
   getActionForRedo: ActionConvertor<PBT, K>;
   updatePayloadOnUndo?: Updater<S, PBT[K]['undoRedo']>;
@@ -82,7 +80,8 @@ export type UndoRedoConfig<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = UndoConfig<S, PBT, K> & {
-  updateState: Updater<PBT[K]['original'], S>;
+  updateStateOnRedo: Updater<PBT[K]['original'], S>;
+  updateStateOnUndo: Updater<PBT[K]['original'], S>;
 };
 
 export type DefaultUndoRedoConfigByType<S, PBT extends StringMap> = {
@@ -105,10 +104,7 @@ export type PayloadUndoRedo<T> = {
   redo: T;
 };
 
-export type PayloadConfigUndoRedo<T> = PayloadConfigAbsolute<
-  T,
-  PayloadUndoRedo<T>
->;
+export type PayloadConfigUndoRedo<T> = PayloadConfig<T, PayloadUndoRedo<T>>;
 
 export type UpdatersByType<S, PBT extends StringMap> = {
   [K in keyof PBT]: Updater<PBT[K], S>;

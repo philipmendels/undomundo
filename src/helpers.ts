@@ -22,7 +22,7 @@ export const makeRelativeUndoConfig = <
   getActionForUndo: ActionConvertor<PBT, K>;
   updatePayload?: Updater<S, PBT[K]['undoRedo']>;
 }): UndoConfig<S, PBT, K> => ({
-  initPayload: (_, p) => p,
+  initPayload: _ => identity,
   getActionForUndo,
   getActionForRedo: identity,
   updatePayloadOnUndo: updatePayload,
@@ -33,16 +33,27 @@ export const makeRelativeUndoRedoConfig = <
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
->({
-  updateState,
-  ...rest
-}: {
-  getActionForUndo: ActionConvertor<PBT, K>;
-  updatePayload?: Updater<S, PBT[K]['undoRedo']>;
-  updateState: Updater<PBT[K]['original'], S>;
-}): UndoRedoConfig<S, PBT, K> => ({
-  updateState,
-  ...makeRelativeUndoConfig(rest),
+>(
+  props: {
+    updatePayload?: Updater<S, PBT[K]['undoRedo']>;
+    updateState: Updater<PBT[K]['original'], S>;
+  } & (
+    | {
+        getActionForUndo: ActionConvertor<PBT, K>;
+        updateStateOnUndo?: never;
+      }
+    | {
+        getActionForUndo?: never;
+        updateStateOnUndo: Updater<PBT[K]['original'], S>;
+      }
+  )
+): UndoRedoConfig<S, PBT, K> => ({
+  updateStateOnRedo: props.updateState,
+  updateStateOnUndo: props.updateStateOnUndo || props.updateState,
+  ...makeRelativeUndoConfig({
+    updatePayload: props.updatePayload,
+    getActionForUndo: props.getActionForUndo || identity,
+  }),
 });
 
 const getDefaultConfig = <T = unknown>(): PayloadMapping<
@@ -63,7 +74,7 @@ export const makeAbsoluteUndoConfig = <
 }): UndoConfig<S, PBT, K> => {
   const config = getDefaultConfig();
   return {
-    initPayload: (state, original) =>
+    initPayload: state => original =>
       config.boxUndoRedo(props.updatePayload(state)(original), original),
     getActionForUndo: ({ type, payload }) => ({
       type,
@@ -97,7 +108,8 @@ export const makeAbsoluteUndoRedoConfig = <
   updatePayload: Updater<S, PBT[K]['original']>;
   updateState: Updater<PBT[K]['original'], S>;
 }): UndoRedoConfig<S, PBT, K> => ({
-  updateState,
+  updateStateOnRedo: updateState,
+  updateStateOnUndo: updateState,
   ...makeAbsoluteUndoConfig({ updatePayload }),
 });
 
