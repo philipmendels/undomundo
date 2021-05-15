@@ -5,9 +5,17 @@ import {
   makeDefaultPartialActionConfig,
   makeRelativePartialActionConfig,
 } from '../src/helpers';
-import { Reducer, UState } from '../src/types';
-import { add, evolve, merge } from '../src/util';
-import { PBT, State } from './shared';
+import {
+  DefaultPayloadConfig,
+  Reducer,
+  RelativePayloadConfig,
+  UState,
+} from '../src/types';
+import { add, evolve, merge, subtract } from '../src/util';
+
+type State = {
+  count: number;
+};
 
 type Actions =
   | {
@@ -15,9 +23,19 @@ type Actions =
       payload: number;
     }
   | {
+      type: 'subtractFromCount';
+      payload: number;
+    }
+  | {
       type: 'updateCount';
       payload: number;
     };
+
+type PBT = {
+  updateCount: DefaultPayloadConfig<number>;
+  addToCount: RelativePayloadConfig<number>;
+  subtractFromCount: RelativePayloadConfig<number>;
+};
 
 let uState: UState<State, PBT> = {
   effects: [],
@@ -33,8 +51,12 @@ let uState: UState<State, PBT> = {
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'addToCount') {
     const { payload } = action;
-    // just for testing if referentially equal state is ignored
+    // payload === 0 check is added for testing if an update that leads to a
+    // referentially equal state is not added to the undo history
     return payload === 0 ? state : pipe(state, evolve({ count: add(payload) }));
+  }
+  if (action.type === 'subtractFromCount') {
+    return pipe(state, evolve({ count: subtract(action.payload) }));
   }
   if (action.type === 'updateCount') {
     return pipe(state, merge({ count: action.payload }));
@@ -44,7 +66,12 @@ const reducer: Reducer<State, Actions> = (state, action) => {
 
 const uReducer = wrapReducer<State, PBT>(reducer, {
   addToCount: makeRelativePartialActionConfig({
+    // payload conversion:
     makeActionForUndo: evolve({ payload: negate }),
+  }),
+  subtractFromCount: makeRelativePartialActionConfig({
+    // type conversion:
+    makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
   }),
   updateCount: makeDefaultPartialActionConfig({
     updatePayload: state => _ => state.count,
@@ -60,6 +87,12 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(6);
 
     uState = uReducer(uState, {
+      type: 'subtractFromCount',
+      payload: 1,
+    });
+    expect(uState.state.count).toBe(5);
+
+    uState = uReducer(uState, {
       type: 'updateCount',
       payload: 4,
     });
@@ -67,15 +100,19 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(4);
 
     expect(uState.history).toStrictEqual<typeof uState.history>({
-      index: 1,
+      index: 2,
       stack: [
         {
           payload: 3,
           type: 'addToCount',
         },
         {
+          payload: 1,
+          type: 'subtractFromCount',
+        },
+        {
           payload: {
-            undo: 6,
+            undo: 5,
             redo: 4,
           },
           type: 'updateCount',
@@ -88,6 +125,10 @@ describe('wrapReducer', () => {
         payload: 3,
       },
       {
+        type: 'subtractFromCount',
+        payload: 1,
+      },
+      {
         type: 'updateCount',
         payload: 4,
       },
@@ -96,6 +137,9 @@ describe('wrapReducer', () => {
 
   it('undo works', () => {
     const prevUState = uState;
+    uState = uReducer(uState, { type: 'undo' });
+    expect(uState.state.count).toBe(5);
+
     uState = uReducer(uState, { type: 'undo' });
     expect(uState.state.count).toBe(6);
 
@@ -109,7 +153,12 @@ describe('wrapReducer', () => {
       prevUState.effects.concat([
         {
           type: 'updateCount',
-          payload: 6,
+          payload: 5,
+        },
+        {
+          // action type is converted for undo:
+          type: 'addToCount',
+          payload: 1,
         },
         {
           type: 'addToCount',
@@ -132,6 +181,9 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(6);
 
     uState = uReducer(uState, { type: 'redo' });
+    expect(uState.state.count).toBe(5);
+
+    uState = uReducer(uState, { type: 'redo' });
     expect(uState.state.count).toBe(4);
 
     expect(uState.history.stack).toStrictEqual(prevUState.history.stack);
@@ -140,6 +192,10 @@ describe('wrapReducer', () => {
         {
           type: 'addToCount',
           payload: 3,
+        },
+        {
+          type: 'subtractFromCount',
+          payload: 1,
         },
         {
           type: 'updateCount',
@@ -195,6 +251,15 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(13);
 
     uState = uReducer(uState, {
+      type: 'subtractFromCount',
+      payload: 2,
+      meta: {
+        skipHistory: true,
+      },
+    });
+    expect(uState.state.count).toBe(11);
+
+    uState = uReducer(uState, {
       type: 'updateCount',
       payload: 33,
       meta: {
@@ -209,6 +274,10 @@ describe('wrapReducer', () => {
         {
           type: 'addToCount',
           payload: 9,
+        },
+        {
+          type: 'subtractFromCount',
+          payload: 2,
         },
         {
           type: 'updateCount',
@@ -230,6 +299,15 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(35);
 
     uState = uReducer(uState, {
+      type: 'subtractFromCount',
+      payload: 7,
+      meta: {
+        skipEffects: true,
+      },
+    });
+    expect(uState.state.count).toBe(28);
+
+    uState = uReducer(uState, {
       type: 'updateCount',
       payload: 99,
       meta: {
@@ -240,15 +318,19 @@ describe('wrapReducer', () => {
 
     expect(uState.effects).toBe(prevUState.effects);
     expect(uState.history).toStrictEqual<typeof uState.history>({
-      index: prevUState.history.index + 2,
+      index: prevUState.history.index + 3,
       stack: prevUState.history.stack.concat([
         {
           payload: 2,
           type: 'addToCount',
         },
         {
+          payload: 7,
+          type: 'subtractFromCount',
+        },
+        {
           payload: {
-            undo: 35,
+            undo: 28,
             redo: 99,
           },
           type: 'updateCount',

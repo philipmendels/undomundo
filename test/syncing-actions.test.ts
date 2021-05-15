@@ -14,7 +14,10 @@ import {
   RelativePayloadConfig,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
-import { State } from './shared';
+
+type State = {
+  count: number;
+};
 
 type PBT = {
   updateCount: DefaultPayloadConfig<number>;

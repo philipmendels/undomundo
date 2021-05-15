@@ -11,9 +11,12 @@ import {
   UState,
 } from '../src/types';
 import { add, evolve, merge, subtract } from '../src/util';
-import { State } from './shared';
 
-export type PBT = {
+type State = {
+  count: number;
+};
+
+type PBT = {
   updateCount: DefaultPayloadConfig<number>;
   addToCount: RelativePayloadConfig<number>;
   addToCount_alt: RelativePayloadConfig<number>;
@@ -21,10 +24,12 @@ export type PBT = {
 
 const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
   addToCount: makeRelativeActionConfig({
+    // payload conversion for undo:
     makeActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
   }),
   addToCount_alt: makeRelativeActionConfig({
+    // separate updater for undo
     updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
     updateState: amount => evolve({ count: add(amount) }),
   }),

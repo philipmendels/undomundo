@@ -2,7 +2,10 @@ import { makeDefaultActionConfig } from '../src/helpers';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
 import { DefaultPayloadConfig, UState } from '../src/types';
 import { merge } from '../src/util';
-import { State } from './shared';
+
+type State = {
+  count: number;
+};
 
 type PBT = {
   updateCount: DefaultPayloadConfig<number>;
