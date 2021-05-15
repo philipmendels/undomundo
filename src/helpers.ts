@@ -10,48 +10,51 @@ import {
   DefaultKeysOf,
 } from './types';
 
-export const getRelativePartialActionConfig = <
+export const makeRelativePartialActionConfig = <
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 >({
-  getActionForUndo,
+  makeActionForUndo,
   updatePayload,
 }: {
-  getActionForUndo: ActionConvertor<PBT, K>;
+  makeActionForUndo: ActionConvertor<PBT, K>;
   updatePayload?: Updater<S, PBT[K]['undoRedo']>;
 }): PartialActionConfig<S, PBT, K> => ({
   initPayload: _ => identity,
-  getActionForUndo,
-  getActionForRedo: identity,
+  makeActionForUndo,
+  makeActionForRedo: identity,
   updatePayloadOnUndo: updatePayload,
   updatePayloadOnRedo: updatePayload,
 });
 
-export const getRelativeActionConfig = <
+export const makeRelativeActionConfig = <
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
->(
-  props: {
-    updatePayload?: Updater<S, PBT[K]['undoRedo']>;
-    updateState: Updater<PBT[K]['original'], S>;
-  } & (
-    | {
-        getActionForUndo: ActionConvertor<PBT, K>;
-        updateStateOnUndo?: never;
-      }
-    | {
-        getActionForUndo?: never;
-        updateStateOnUndo: Updater<PBT[K]['original'], S>;
-      }
-  )
-): ActionConfig<S, PBT, K> => ({
-  updateStateOnRedo: props.updateState,
-  updateStateOnUndo: props.updateStateOnUndo || props.updateState,
-  ...getRelativePartialActionConfig({
-    updatePayload: props.updatePayload,
-    getActionForUndo: props.getActionForUndo || identity,
+>({
+  updateState,
+  makeActionForUndo,
+  updatePayload,
+  updateStateOnUndo,
+}: {
+  updatePayload?: Updater<S, PBT[K]['undoRedo']>;
+  updateState: Updater<PBT[K]['original'], S>;
+} & (
+  | {
+      makeActionForUndo: ActionConvertor<PBT, K>;
+      updateStateOnUndo?: never;
+    }
+  | {
+      makeActionForUndo?: never;
+      updateStateOnUndo: Updater<PBT[K]['original'], S>;
+    }
+)): ActionConfig<S, PBT, K> => ({
+  updateStateOnRedo: updateState,
+  updateStateOnUndo: updateStateOnUndo || updateState,
+  ...makeRelativePartialActionConfig({
+    updatePayload,
+    makeActionForUndo: makeActionForUndo || identity,
   }),
 });
 
@@ -70,7 +73,7 @@ export const defaultPayloadMapping = {
   getRedo: <PO>({ redo }: DefaultPayload<PO>) => redo,
 };
 
-export const getAbsolutePartialActionConfig = <
+export const makeDefaultPartialActionConfig = <
   PBT extends PayloadConfigByType,
   K extends DefaultKeysOf<PBT>,
   S
@@ -98,11 +101,11 @@ export const makeAbsolutePartialActionConfig = <
   return {
     initPayload: state => original =>
       payloadMapping.boxUndoRedo(updatePayload(state)(original), original),
-    getActionForUndo: ({ type, payload }) => ({
+    makeActionForUndo: ({ type, payload }) => ({
       type,
       payload: payloadMapping.getUndo(payload),
     }),
-    getActionForRedo: ({ type, payload }) => ({
+    makeActionForRedo: ({ type, payload }) => ({
       type,
       payload: payloadMapping.getRedo(payload),
     }),
@@ -153,7 +156,7 @@ export const makeAbsolutePartialActionConfig = <
 //   };
 // };
 
-export const getAbsoluteActionConfig = <
+export const makeDefaultActionConfig = <
   PBT extends PayloadConfigByType,
   K extends DefaultKeysOf<PBT>,
   S

@@ -1,62 +1,65 @@
 import { makeUndoableReducer } from '.';
 import { redo, undo } from './action-creators';
 import {
-  StringMap,
-  DefaultActionConfigByType,
-  ToPayloadConfigByType,
-  StateWithHistory,
+  UState,
   PayloadHandlersByType,
   UReducerAction,
+  PayloadConfigByType,
+  ActionConfigByType,
 } from './types';
 import { mapRecord } from './util';
 
-type SWH<S, PBT extends StringMap> = StateWithHistory<
-  S,
-  ToPayloadConfigByType<PBT>
->;
-
-export type OnChangeEvent<S, PBT extends StringMap> = {
+export type OnChangeEvent<S, PBT extends PayloadConfigByType> = {
   action: UReducerAction<PBT>;
-  newState: SWH<S, PBT>;
-  oldState: SWH<S, PBT>;
+  newUState: UState<S, PBT>;
+  oldUState: UState<S, PBT>;
 };
 
-export const makeUndoableState = <S, PBT extends StringMap>(
-  initialState: SWH<S, PBT>,
-  configs: DefaultActionConfigByType<S, PBT>,
-  onChange?: (event: OnChangeEvent<S, PBT>) => void
-) => {
-  let state = initialState;
-  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT>(configs);
+export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
+  initialUState,
+  actionConfigs,
+  onChange,
+}: {
+  initialUState: UState<S, PBT>;
+  actionConfigs: ActionConfigByType<S, PBT>;
+  onChange?: (event: OnChangeEvent<S, PBT>) => void;
+}) => {
+  let uState = initialUState;
+  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT>(
+    actionConfigs
+  );
 
-  const withOnChange = (action: UReducerAction<PBT>, newState: SWH<S, PBT>) => {
-    const oldState = state;
-    if (newState !== oldState) {
-      state = newState;
-      onChange?.({ action, newState, oldState });
+  const withOnChange = (
+    action: UReducerAction<PBT>,
+    newUState: UState<S, PBT>
+  ) => {
+    const oldUState = uState;
+    if (newUState !== oldUState) {
+      uState = newUState;
+      onChange?.({ action, newUState, oldUState });
     }
-    return newState;
+    return newUState;
   };
   return {
-    getCurrentState: () => state,
+    getCurrentUState: () => uState,
 
     undoables: mapRecord(actionCreators)<
-      PayloadHandlersByType<SWH<S, PBT>, PBT>
+      PayloadHandlersByType<UState<S, PBT>, PBT>
     >(creator => (payload, skipHistory) => {
       const action = creator(payload, skipHistory);
       return withOnChange(
         action as UReducerAction<PBT>,
-        uReducer(state, action)
+        uReducer(uState, action)
       );
     }),
 
     undo: () => {
       const action = undo();
-      return withOnChange(action, uReducer(state, action));
+      return withOnChange(action, uReducer(uState, action));
     },
     redo: () => {
       const action = redo();
-      return withOnChange(action, uReducer(state, action));
+      return withOnChange(action, uReducer(uState, action));
     },
   };
 };

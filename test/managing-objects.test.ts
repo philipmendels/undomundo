@@ -2,17 +2,13 @@ import { invert } from 'fp-ts-std/Boolean';
 import { when } from 'fp-ts-std/Function';
 import { flow, pipe } from 'fp-ts/function';
 import { filter, map, mapWithIndex } from 'fp-ts/Record';
-import { makeCustomUndoableReducer } from '../src';
+import { makeUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
 import {
-  getAbsoluteActionConfig,
-  getRelativeActionConfig,
+  makeDefaultActionConfig,
+  makeRelativeActionConfig,
 } from '../src/helpers';
-import {
-  UndoRedoConfigByType,
-  DefaultPayloadConfig,
-  StateWithHistory,
-} from '../src/types';
+import { ActionConfigByType, DefaultPayloadConfig, UState } from '../src/types';
 import { evolve, merge } from '../src/util';
 
 type Color = 'red' | 'green' | 'blue';
@@ -72,8 +68,8 @@ const splitPayload = (payload: Record<ID, Card | null>) => ({
   ) as Record<ID, Card>,
 });
 
-const configs: UndoRedoConfigByType<State, PBT> = {
-  setColor: getAbsoluteActionConfig({
+const configs: ActionConfigByType<State, PBT> = {
+  setColor: makeDefaultActionConfig({
     updatePayload: state =>
       mapWithIndex((id, color) =>
         state.cards[id] ? state.cards[id].color : color
@@ -83,7 +79,7 @@ const configs: UndoRedoConfigByType<State, PBT> = {
         cards: mapPayloadToProp(payload, 'color'),
       }),
   }),
-  set: getAbsoluteActionConfig({
+  set: makeDefaultActionConfig({
     updatePayload: state =>
       mapWithIndex(id =>
         state.cards[id] === undefined ? null : state.cards[id]
@@ -98,22 +94,22 @@ const configs: UndoRedoConfigByType<State, PBT> = {
       });
     },
   }),
-  add: getRelativeActionConfig({
+  add: makeRelativeActionConfig({
     updateState: payload => evolve({ cards: merge(payload) }),
-    getActionForUndo: ({ payload }) => ({ type: 'remove', payload }),
+    makeActionForUndo: ({ payload }) => ({ type: 'remove', payload }),
   }),
-  remove: getRelativeActionConfig({
+  remove: makeRelativeActionConfig({
     updateState: payload =>
       evolve({ cards: filter(flow(isIdInSelection(payload), invert)) }),
-    getActionForUndo: ({ payload }) => ({ type: 'add', payload }),
+    makeActionForUndo: ({ payload }) => ({ type: 'add', payload }),
   }),
 };
 
-const { uReducer, actionCreators } = makeCustomUndoableReducer(configs);
+const { uReducer, actionCreators } = makeUndoableReducer(configs);
 
 const { setColor, add, remove, set } = actionCreators;
 
-let uState: StateWithHistory<State, PBT> = {
+let uState: UState<State, PBT> = {
   effects: [],
   history: {
     stack: [],

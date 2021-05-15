@@ -1,15 +1,16 @@
+import { makeDefaultActionConfig } from '../src/helpers';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
-import { StateWithHistory, ToPayloadConfigByType } from '../src/types';
+import { DefaultPayloadConfig, UState } from '../src/types';
 import { merge } from '../src/util';
 import { State } from './shared';
 
 type PBT = {
-  updateCount: number;
+  updateCount: DefaultPayloadConfig<number>;
 };
 
 type CallbackParams = OnChangeEvent<State, PBT>[];
 
-let newState: StateWithHistory<State, ToPayloadConfigByType<PBT>> = {
+let newUState: UState<State, PBT> = {
   effects: [],
   history: {
     stack: [],
@@ -20,74 +21,76 @@ let newState: StateWithHistory<State, ToPayloadConfigByType<PBT>> = {
   },
 };
 
-const callback = jest.fn<void, CallbackParams>();
+const onChange = jest.fn<void, CallbackParams>();
 
-const { undoables, undo, redo, getCurrentState } = makeUndoableState<
-  State,
-  PBT
->(
-  newState,
-  {
-    updateCount: {
+const {
+  undoables,
+  undo,
+  redo,
+  getCurrentUState: getCurrentState,
+} = makeUndoableState<State, PBT>({
+  initialUState: newUState,
+  actionConfigs: {
+    updateCount: makeDefaultActionConfig({
       updatePayload: state => _ => state.count,
       updateState: count => merge({ count }),
-    },
+    }),
   },
-  callback
-);
+  onChange,
+});
 
 const { updateCount } = undoables;
 
 const expectGetCurrentStateEquals = () =>
-  expect(newState).toBe(getCurrentState());
+  expect(newUState).toBe(getCurrentState());
 
 describe('makeUndoableState', () => {
   it('update works', () => {
-    const oldState = newState;
-    newState = updateCount(4);
-    expect(newState.state.count).toBe(4);
+    const oldUState = newUState;
+    newUState = updateCount(4);
+    expect(newUState.state.count).toBe(4);
     expectGetCurrentStateEquals();
-    expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
+    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'updateCount', payload: 4 },
-      newState,
-      oldState,
+      newUState,
+      oldUState,
     });
   });
 
   it('undo works', () => {
-    const oldState = newState;
-    newState = undo();
-    expect(newState.state.count).toBe(2);
+    const oldUState = newUState;
+    newUState = undo();
+    expect(newUState.state.count).toBe(2);
     expectGetCurrentStateEquals();
-    expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
+    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'undo' },
-      newState,
-      oldState,
+      newUState,
+      oldUState,
     });
   });
 
   it('redo works', () => {
-    const oldState = newState;
-    newState = redo();
-    expect(newState.state.count).toBe(4);
+    const oldUState = newUState;
+    newUState = redo();
+    expect(newUState.state.count).toBe(4);
     expectGetCurrentStateEquals();
-    expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
+    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'redo' },
-      newState,
-      oldState,
+      newUState,
+      oldUState,
     });
   });
 
   it('skip history works', () => {
-    const oldState = newState;
-    const prevHist = oldState.history;
-    newState = updateCount(33, { skipHistory: true });
-    expect(newState.state.count).toBe(33);
-    expect(newState.history).toBe(prevHist);
-    expect(callback).toHaveBeenLastCalledWith<CallbackParams>({
+    const oldUState = newUState;
+    const prevHist = oldUState.history;
+    newUState = updateCount(33, { skipHistory: true });
+    expect(newUState.state.count).toBe(33);
+    expect(newUState.history).toBe(prevHist);
+    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
       action: { type: 'updateCount', payload: 33, meta: { skipHistory: true } },
-      newState,
-      oldState,
+      newUState,
+      oldUState,
     });
   });
 });

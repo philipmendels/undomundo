@@ -1,50 +1,68 @@
+import { negate } from 'fp-ts-std/Number';
 import { redo, undo } from '../src/action-creators';
+import {
+  makeDefaultActionConfig,
+  makeRelativeActionConfig,
+} from '../src/helpers';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
-import { StateWithHistory, ToPayloadConfigByType } from '../src/types';
-import { merge } from '../src/util';
-import { State } from './shared';
-
-type PBT = {
-  updateCount: number;
-};
+import { UState } from '../src/types';
+import { add, evolve, merge } from '../src/util';
+import { State, PBT } from './shared';
 
 const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
-  updateCount: {
+  addToCount: makeRelativeActionConfig({
+    makeActionForUndo: evolve({ payload: negate }),
+    updateState: amount => evolve({ count: add(amount) }),
+  }),
+  updateCount: makeDefaultActionConfig({
     updatePayload: state => _ => state.count,
     updateState: count => merge({ count }),
-  },
+  }),
 });
 
-const { updateCount } = actionCreators;
+const { addToCount, updateCount } = actionCreators;
 
-describe('makeUndoableReducer', () => {
-  let uState: StateWithHistory<State, ToPayloadConfigByType<PBT>> = {
+describe('makeCustomUndoableReducer', () => {
+  let uState: UState<State, PBT> = {
     effects: [],
     history: {
       stack: [],
       index: -1,
     },
     state: {
-      count: 2,
+      count: 3,
     },
   };
+
   it('update works', () => {
+    uState = uReducer(uState, addToCount(3));
+    expect(uState.state.count).toBe(6);
+
     uState = uReducer(uState, updateCount(4));
     expect(uState.state.count).toBe(4);
   });
 
   it('undo works', () => {
     uState = uReducer(uState, undo());
-    expect(uState.state.count).toBe(2);
+    expect(uState.state.count).toBe(6);
+
+    uState = uReducer(uState, undo());
+    expect(uState.state.count).toBe(3);
   });
 
   it('redo works', () => {
+    uState = uReducer(uState, redo());
+    expect(uState.state.count).toBe(6);
+
     uState = uReducer(uState, redo());
     expect(uState.state.count).toBe(4);
   });
 
   it('skip history works', () => {
     const prevUState = uState;
+    uState = uReducer(uState, addToCount(9, { skipHistory: true }));
+    expect(uState.state.count).toBe(13);
+
     uState = uReducer(uState, updateCount(33, { skipHistory: true }));
     expect(uState.state.count).toBe(33);
     expect(uState.history).toBe(prevUState.history);
