@@ -5,12 +5,12 @@ import { filter, map, mapWithIndex } from 'fp-ts/Record';
 import { makeCustomUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
 import {
-  makeAbsoluteUndoRedoConfig,
-  makeRelativeUndoRedoConfig,
+  getAbsoluteActionConfig,
+  getRelativeActionConfig,
 } from '../src/helpers';
 import {
   UndoRedoConfigByType,
-  PayloadConfigUndoRedo,
+  DefaultPayloadConfig,
   StateWithHistory,
 } from '../src/types';
 import { evolve, merge } from '../src/util';
@@ -34,10 +34,10 @@ type CardsPayloadConfig = {
 };
 
 type PBT = {
-  setColor: PayloadConfigUndoRedo<Record<ID, Color>>;
+  setColor: DefaultPayloadConfig<Record<ID, Color>>;
   add: CardsPayloadConfig;
   remove: CardsPayloadConfig;
-  set: PayloadConfigUndoRedo<Record<ID, Card | null>>;
+  set: DefaultPayloadConfig<Record<ID, Card | null>>;
 };
 
 type ObjWithId = {
@@ -73,7 +73,7 @@ const splitPayload = (payload: Record<ID, Card | null>) => ({
 });
 
 const configs: UndoRedoConfigByType<State, PBT> = {
-  setColor: makeAbsoluteUndoRedoConfig({
+  setColor: getAbsoluteActionConfig({
     updatePayload: state =>
       mapWithIndex((id, color) =>
         state.cards[id] ? state.cards[id].color : color
@@ -83,7 +83,7 @@ const configs: UndoRedoConfigByType<State, PBT> = {
         cards: mapPayloadToProp(payload, 'color'),
       }),
   }),
-  set: makeAbsoluteUndoRedoConfig({
+  set: getAbsoluteActionConfig({
     updatePayload: state =>
       mapWithIndex(id =>
         state.cards[id] === undefined ? null : state.cards[id]
@@ -98,11 +98,11 @@ const configs: UndoRedoConfigByType<State, PBT> = {
       });
     },
   }),
-  add: makeRelativeUndoRedoConfig({
+  add: getRelativeActionConfig({
     updateState: payload => evolve({ cards: merge(payload) }),
     getActionForUndo: ({ payload }) => ({ type: 'remove', payload }),
   }),
-  remove: makeRelativeUndoRedoConfig({
+  remove: getRelativeActionConfig({
     updateState: payload =>
       evolve({ cards: filter(flow(isIdInSelection(payload), invert)) }),
     getActionForUndo: ({ payload }) => ({ type: 'add', payload }),

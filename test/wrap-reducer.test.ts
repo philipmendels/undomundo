@@ -1,7 +1,10 @@
 import { negate } from 'fp-ts-std/Number';
 import { pipe } from 'fp-ts/lib/function';
 import { wrapReducer } from '../src';
-import { makeAbsoluteUndoConfig, makeRelativeUndoConfig } from '../src/helpers';
+import {
+  getAbsolutePartialActionConfig,
+  getRelativePartialActionConfig,
+} from '../src/helpers';
 import { Reducer, StateWithHistory } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { PBT, State } from './shared';
@@ -40,10 +43,10 @@ const reducer: Reducer<State, Actions> = (state, action) => {
 };
 
 const uReducer = wrapReducer<State, PBT>(reducer, {
-  addToCount: makeRelativeUndoConfig({
+  addToCount: getRelativePartialActionConfig({
     getActionForUndo: evolve({ payload: negate }),
   }),
-  updateCount: makeAbsoluteUndoConfig({
+  updateCount: getAbsolutePartialActionConfig({
     updatePayload: state => _ => state.count,
   }),
 });

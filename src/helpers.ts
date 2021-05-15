@@ -1,17 +1,16 @@
-import { identity } from 'fp-ts/lib/function';
+import { identity } from 'fp-ts/function';
 import {
   ActionConvertor,
   PayloadConfigByType,
   PayloadMapping,
-  PayloadUndoRedo,
-  UndoConfig,
-  UndoRedoConfig,
-  // UndoConfigAbsolute,
-  // UndoRedoConfigAbsolute,
+  DefaultPayload,
+  PartialActionConfig,
+  ActionConfig,
   Updater,
+  DefaultKeysOf,
 } from './types';
 
-export const makeRelativeUndoConfig = <
+export const getRelativePartialActionConfig = <
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
@@ -21,7 +20,7 @@ export const makeRelativeUndoConfig = <
 }: {
   getActionForUndo: ActionConvertor<PBT, K>;
   updatePayload?: Updater<S, PBT[K]['undoRedo']>;
-}): UndoConfig<S, PBT, K> => ({
+}): PartialActionConfig<S, PBT, K> => ({
   initPayload: _ => identity,
   getActionForUndo,
   getActionForRedo: identity,
@@ -29,7 +28,7 @@ export const makeRelativeUndoConfig = <
   updatePayloadOnRedo: updatePayload,
 });
 
-export const makeRelativeUndoRedoConfig = <
+export const getRelativeActionConfig = <
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
@@ -47,115 +46,162 @@ export const makeRelativeUndoRedoConfig = <
         updateStateOnUndo: Updater<PBT[K]['original'], S>;
       }
   )
-): UndoRedoConfig<S, PBT, K> => ({
+): ActionConfig<S, PBT, K> => ({
   updateStateOnRedo: props.updateState,
   updateStateOnUndo: props.updateStateOnUndo || props.updateState,
-  ...makeRelativeUndoConfig({
+  ...getRelativePartialActionConfig({
     updatePayload: props.updatePayload,
     getActionForUndo: props.getActionForUndo || identity,
   }),
 });
 
-const getDefaultConfig = <T = unknown>(): PayloadMapping<
-  T,
-  PayloadUndoRedo<T>
-> => ({
-  boxUndoRedo: (undo, redo) => ({ undo, redo }),
-  getUndo: boxed => boxed.undo,
-  getRedo: boxed => boxed.redo,
-});
+// export const getDefaultPayloadMapping = <T>(): PayloadMapping<
+//   T,
+//   PayloadUndoRedo<T>
+// > => ({
+//   boxUndoRedo: (undo, redo) => ({ undo, redo }),
+//   getUndo: boxed => boxed.undo,
+//   getRedo: boxed => boxed.redo,
+// });
 
-export const makeAbsoluteUndoConfig = <
-  S,
+export const defaultPayloadMapping = {
+  boxUndoRedo: <PO>(undo: PO, redo: PO) => ({ undo, redo }),
+  getUndo: <PO>({ undo }: DefaultPayload<PO>) => undo,
+  getRedo: <PO>({ redo }: DefaultPayload<PO>) => redo,
+};
+
+export const getAbsolutePartialActionConfig = <
   PBT extends PayloadConfigByType,
-  K extends keyof PBT
->(props: {
+  K extends DefaultKeysOf<PBT>,
+  S
+>({
+  updatePayload,
+}: {
   updatePayload: Updater<S, PBT[K]['original']>;
-}): UndoConfig<S, PBT, K> => {
-  const config = getDefaultConfig();
+}) =>
+  makeAbsolutePartialActionConfig<PBT, K, S>({
+    payloadMapping: defaultPayloadMapping,
+    updatePayload,
+  });
+
+export const makeAbsolutePartialActionConfig = <
+  PBT extends PayloadConfigByType,
+  K extends keyof PBT,
+  S
+>({
+  payloadMapping,
+  updatePayload,
+}: {
+  payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>;
+  updatePayload: Updater<S, PBT[K]['original']>;
+}): PartialActionConfig<S, PBT, K> => {
   return {
     initPayload: state => original =>
-      config.boxUndoRedo(props.updatePayload(state)(original), original),
+      payloadMapping.boxUndoRedo(updatePayload(state)(original), original),
     getActionForUndo: ({ type, payload }) => ({
       type,
-      payload: config.getUndo(payload),
+      payload: payloadMapping.getUndo(payload),
     }),
     getActionForRedo: ({ type, payload }) => ({
       type,
-      payload: config.getRedo(payload),
+      payload: payloadMapping.getRedo(payload),
     }),
     updatePayloadOnUndo: state => undoRedo =>
-      config.boxUndoRedo(
-        config.getUndo(undoRedo),
-        props.updatePayload(state)(config.getRedo(undoRedo))
+      payloadMapping.boxUndoRedo(
+        payloadMapping.getUndo(undoRedo),
+        updatePayload(state)(payloadMapping.getRedo(undoRedo))
       ),
     updatePayloadOnRedo: state => undoRedo =>
-      config.boxUndoRedo(
-        props.updatePayload(state)(config.getUndo(undoRedo)),
-        config.getRedo(undoRedo)
+      payloadMapping.boxUndoRedo(
+        updatePayload(state)(payloadMapping.getUndo(undoRedo)),
+        payloadMapping.getRedo(undoRedo)
       ),
   };
 };
 
-export const makeAbsoluteUndoRedoConfig = <
-  S,
+// export const makeAbsolutePartialActionConfig2 = <
+//   PBT extends PayloadConfigByType,
+//   K extends keyof PBT
+// >(
+//   payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>
+// ) => <S>({
+//   updatePayload,
+// }: {
+//   updatePayload: Updater<S, PBT[K]['original']>;
+// }): PartialActionConfig<S, PBT, K> => {
+//   return {
+//     initPayload: state => original =>
+//       payloadMapping.boxUndoRedo(updatePayload(state)(original), original),
+//     getActionForUndo: ({ type, payload }) => ({
+//       type,
+//       payload: payloadMapping.getUndo(payload),
+//     }),
+//     getActionForRedo: ({ type, payload }) => ({
+//       type,
+//       payload: payloadMapping.getRedo(payload),
+//     }),
+//     updatePayloadOnUndo: state => undoRedo =>
+//       payloadMapping.boxUndoRedo(
+//         payloadMapping.getUndo(undoRedo),
+//         updatePayload(state)(payloadMapping.getRedo(undoRedo))
+//       ),
+//     updatePayloadOnRedo: state => undoRedo =>
+//       payloadMapping.boxUndoRedo(
+//         updatePayload(state)(payloadMapping.getUndo(undoRedo)),
+//         payloadMapping.getRedo(undoRedo)
+//       ),
+//   };
+// };
+
+export const getAbsoluteActionConfig = <
   PBT extends PayloadConfigByType,
-  K extends keyof PBT
+  K extends DefaultKeysOf<PBT>,
+  S
 >({
   updatePayload,
   updateState,
 }: {
   updatePayload: Updater<S, PBT[K]['original']>;
   updateState: Updater<PBT[K]['original'], S>;
-}): UndoRedoConfig<S, PBT, K> => ({
+}) =>
+  makeAbsoluteActionConfig({
+    payloadMapping: defaultPayloadMapping,
+    updatePayload,
+    updateState,
+  });
+
+export const makeAbsoluteActionConfig = <
+  S,
+  PBT extends PayloadConfigByType,
+  K extends keyof PBT
+>({
+  payloadMapping,
+  updatePayload,
+  updateState,
+}: {
+  payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>;
+  updatePayload: Updater<S, PBT[K]['original']>;
+  updateState: Updater<PBT[K]['original'], S>;
+}): ActionConfig<S, PBT, K> => ({
   updateStateOnRedo: updateState,
   updateStateOnUndo: updateState,
-  ...makeAbsoluteUndoConfig({ updatePayload }),
+  ...makeAbsolutePartialActionConfig({ payloadMapping, updatePayload }),
 });
 
-// export const getDefaultUndoConfigAbsolute = <S, PO>(
-//   updatePayload: Updater<S, PO>
-// ): UndoConfigAbsolute<S, PO, PayloadUndoRedo<PO>> => ({
+// export const makeAbsoluteActionConfig2 = <
+//   S,
+//   PBT extends PayloadConfigByType,
+//   K extends keyof PBT
+// >(
+//   payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>
+// ) => ({
 //   updatePayload,
-//   boxUndoRedo: (undo, redo) => ({ undo, redo }),
-//   getUndo: boxed => boxed.undo,
-//   getRedo: boxed => boxed.redo,
-// });
-
-// export const getDefaultUndoRedoConfigAbsolute = <S, PO>(
-//   updatePayload: Updater<S, PO>,
-//   updateState: Updater<PO, S>
-// ): UndoRedoConfigAbsolute<S, PO, PayloadUndoRedo<PO>> => ({
 //   updateState,
-//   ...getDefaultUndoConfigAbsolute(updatePayload),
+// }: {
+//   updatePayload: Updater<S, PBT[K]['original']>;
+//   updateState: Updater<PBT[K]['original'], S>;
+// }): ActionConfig<S, PBT, K> => ({
+//   updateStateOnRedo: updateState,
+//   updateStateOnUndo: updateState,
+//   ...makeAbsolutePartialActionConfig({ payloadMapping, updatePayload }),
 // });
-
-// const updateOnUndo = <S, PO, PUR>(
-//   state: S,
-//   payloadUndoRedo: PUR,
-//   config: UndoConfigAbsolute<S, PO, PUR>
-// ): PUR =>
-//   config.boxUndoRedo(
-//     config.getUndo(payloadUndoRedo),
-//     config.updatePayload(state)(config.getRedo(payloadUndoRedo))
-//   );
-
-// const updateOnRedo = <S, PO, PUR>(
-//   state: S,
-//   payloadUndoRedo: PUR,
-//   config: UndoConfigAbsolute<S, PO, PUR>
-// ): PUR =>
-//   config.boxUndoRedo(
-//     config.updatePayload(state)(config.getUndo(payloadUndoRedo)),
-//     config.getRedo(payloadUndoRedo)
-//   );
-
-// const makePayload = <S, PO, PUR>(
-//   state: S,
-//   payloadOriginal: PO,
-//   config: UndoConfigAbsolute<S, PO, PUR>
-// ): PUR =>
-//   config.boxUndoRedo(
-//     config.updatePayload(state)(payloadOriginal),
-//     payloadOriginal
-//   );

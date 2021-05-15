@@ -2,7 +2,7 @@ import { makeUndoableReducer } from '.';
 import { redo, undo } from './action-creators';
 import {
   StringMap,
-  DefaultUndoRedoConfigByType,
+  DefaultActionConfigByType,
   ToPayloadConfigByType,
   StateWithHistory,
   PayloadHandlersByType,
@@ -23,7 +23,7 @@ export type OnChangeEvent<S, PBT extends StringMap> = {
 
 export const makeUndoableState = <S, PBT extends StringMap>(
   initialState: SWH<S, PBT>,
-  configs: DefaultUndoRedoConfigByType<S, PBT>,
+  configs: DefaultActionConfigByType<S, PBT>,
   onChange?: (event: OnChangeEvent<S, PBT>) => void
 ) => {
   let state = initialState;
