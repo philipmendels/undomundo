@@ -34,7 +34,11 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                 })
               : identity,
           }),
-          state: prev => reducer(prev, newAction),
+          state: prev =>
+            reducer(prev, {
+              ...newAction,
+              undoMundo: { isUndo: true },
+            }),
           effects: append(newAction),
         })
       );

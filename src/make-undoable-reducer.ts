@@ -16,7 +16,10 @@ export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
     PayloadOriginalByType<PBT>
   >(
     mapRecord(actionConfigs)<UpdatersByType<S, PayloadOriginalByType<PBT>>>(
-      config => config.updateStateOnRedo
+      config => ({
+        undo: config.updateStateOnUndo,
+        redo: config.updateStateOnRedo,
+      })
     )
   );
   return {

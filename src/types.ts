@@ -24,6 +24,11 @@ export type PayloadConfig<PO = any, PUR = any> = {
   undoRedo: PUR;
 };
 
+export type RelativePayloadConfig<PO> = {
+  original: PO;
+  undoRedo: PO;
+};
+
 export type PayloadOriginalByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PBT[K]['original'];
 };
@@ -31,6 +36,14 @@ export type PayloadOriginalByType<PBT extends PayloadConfigByType> = {
 export type ActionUnion<PBT extends StringMap> = ValueOf<
   {
     [K in keyof PBT]: Action<K, PBT[K]>;
+  }
+>;
+
+export type UndoableActionUnion<PBT extends StringMap> = ValueOf<
+  {
+    [K in keyof PBT]: Action<K, PBT[K]> & {
+      undoMundo?: { isUndo?: boolean };
+    };
   }
 >;
 
@@ -104,7 +117,7 @@ export type DefaultPayload<T> = {
 export type DefaultPayloadConfig<T> = PayloadConfig<T, DefaultPayload<T>>;
 
 export type UpdatersByType<S, PBT extends StringMap> = {
-  [K in keyof PBT]: Updater<PBT[K], S>;
+  [K in keyof PBT]: { undo: Updater<PBT[K], S>; redo: Updater<PBT[K], S> };
 };
 
 export type ActionCreatorsByType<PBT extends StringMap> = {
@@ -156,7 +169,7 @@ export type Reducer<S, A> = (state: S, action: A) => S;
 
 export type ReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   S,
-  OriginalActionUnion<PBT>
+  UndoableActionUnion<PayloadOriginalByType<PBT>>
 >;
 
 export type UReducerAction<PBT extends PayloadConfigByType> =

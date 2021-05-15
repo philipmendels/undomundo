@@ -11,20 +11,15 @@ import {
   PayloadOriginalByType,
   ActionConfigByType,
   DefaultPayloadConfig,
+  RelativePayloadConfig,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { State } from './shared';
 
 type PBT = {
   updateCount: DefaultPayloadConfig<number>;
-  addToCount: {
-    original: number;
-    undoRedo: number;
-  };
-  multiplyCount: {
-    original: number;
-    undoRedo: number;
-  };
+  addToCount: RelativePayloadConfig<number>;
+  multiplyCount: RelativePayloadConfig<number>;
 };
 
 const configs: ActionConfigByType<State, PBT> = {
