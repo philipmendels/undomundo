@@ -8,7 +8,12 @@ import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
 } from '../src/helpers';
-import { ActionConfigByType, DefaultPayloadConfig, UState } from '../src/types';
+import {
+  ActionConfigByType,
+  DefaultPayloadConfig,
+  RelativePayloadConfig,
+  UState,
+} from '../src/types';
 import { evolve, merge } from '../src/util';
 
 type Color = 'red' | 'green' | 'blue';
@@ -24,10 +29,7 @@ type State = {
   cards: Record<ID, Card>;
 };
 
-type CardsPayloadConfig = {
-  original: Record<ID, Card>;
-  undoRedo: Record<ID, Card>;
-};
+type CardsPayloadConfig = RelativePayloadConfig<Record<ID, Card>>;
 
 type PBT = {
   setColor: DefaultPayloadConfig<Record<ID, Color>>;

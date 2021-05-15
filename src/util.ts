@@ -4,10 +4,10 @@ import {
   StringMap,
   UpdatersByType,
   Reducer,
-  ActionUnion,
   ActionCreatorsByType,
   ValueOf,
   Endomorphism,
+  UndoableActionUnion,
 } from './types';
 
 export const add = (a: number) => (b: number) => a + b;
@@ -21,7 +21,7 @@ export const updateArrayAt = <A>(i: number, item: A) => (array: A[]): A[] => {
   return clone;
 };
 
-// TODO: hasOwnProperty check
+// TODO: strict version hasOwnProperty check?
 export const merge = <S extends StringMap, P extends Partial<S>>(
   partial: P
 ): Endomorphism<S> => state => ({
@@ -67,10 +67,12 @@ export const mapRecordWithKey = <A extends StringMap>(a: A) => <
 export const makeReducer = <S, PBT extends StringMap>(
   stateUpdaters: UpdatersByType<S, PBT>
 ) => ({
-  reducer: ((state, { payload, type }) => {
-    const updater = stateUpdaters[type];
+  reducer: ((state, { payload, type, undoMundo }) => {
+    const updater = undoMundo?.isUndo
+      ? stateUpdaters[type].undo
+      : stateUpdaters[type].redo;
     return updater ? updater(payload)(state) : state;
-  }) as Reducer<S, ActionUnion<PBT>>,
+  }) as Reducer<S, UndoableActionUnion<PBT>>,
   actionCreators: mapRecordWithKey(stateUpdaters)<ActionCreatorsByType<PBT>>(
     type => payload => ({ payload, type })
   ),
