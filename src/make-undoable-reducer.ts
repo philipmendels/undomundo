@@ -1,20 +1,31 @@
-import { getAbsoluteActionConfig } from './helpers';
-import { makeCustomUndoableReducer } from './make-custom-undoable-reducer';
+import { wrapReducer } from './wrap-reducer';
 import {
-  DefaultActionConfigByType,
-  StringMap,
-  ToPayloadConfigByType,
-  UndoRedoConfigByType,
+  PayloadConfigByType,
+  ActionConfigByType,
+  UpdatersByType,
+  PayloadOriginalByType,
+  UActionCreatorsByType,
 } from './types';
-import { mapRecord } from './util';
+import { makeReducer, mapRecord } from './util';
 
-export const makeUndoableReducer = <S, M extends StringMap>(
-  configs: DefaultActionConfigByType<S, M>
+export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
+  actionConfigs: ActionConfigByType<S, PBT>
 ) => {
-  type PBT = ToPayloadConfigByType<M>;
-  return makeCustomUndoableReducer<S, PBT>(
-    mapRecord(configs)<UndoRedoConfigByType<S, PBT>>(
-      config => getAbsoluteActionConfig(config) as any
+  const { reducer, actionCreators } = makeReducer<
+    S,
+    PayloadOriginalByType<PBT>
+  >(
+    mapRecord(actionConfigs)<UpdatersByType<S, PayloadOriginalByType<PBT>>>(
+      config => config.updateStateOnRedo
     )
   );
+  return {
+    uReducer: wrapReducer<S, PBT>(reducer, actionConfigs),
+    actionCreators: mapRecord(actionCreators)<
+      UActionCreatorsByType<PayloadOriginalByType<PBT>>
+    >(ac => (payload, options) => ({
+      ...ac(payload),
+      ...(options && { meta: options }),
+    })),
+  };
 };

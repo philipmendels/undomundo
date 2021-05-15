@@ -1,15 +1,15 @@
 import { negate } from 'fp-ts-std/Number';
-import { makeCustomUndoableReducer } from '../src';
+import { makeUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
 import {
-  getAbsoluteActionConfig,
-  getRelativeActionConfig,
+  makeDefaultActionConfig,
+  makeRelativeActionConfig,
 } from '../src/helpers';
 import {
   ActionUnion,
-  StateWithHistory,
+  UState,
   PayloadOriginalByType,
-  UndoRedoConfigByType,
+  ActionConfigByType,
   DefaultPayloadConfig,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
@@ -27,23 +27,23 @@ type PBT = {
   };
 };
 
-const configs: UndoRedoConfigByType<State, PBT> = {
-  addToCount: getRelativeActionConfig({
-    getActionForUndo: evolve({ payload: negate }),
+const configs: ActionConfigByType<State, PBT> = {
+  addToCount: makeRelativeActionConfig({
+    makeActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
   }),
-  multiplyCount: getRelativeActionConfig({
-    getActionForUndo: evolve({ payload: p => 1 / p }),
+  multiplyCount: makeRelativeActionConfig({
+    makeActionForUndo: evolve({ payload: p => 1 / p }),
     updateState: amount => evolve({ count: prev => prev * amount }),
   }),
-  updateCount: getAbsoluteActionConfig({
+  updateCount: makeDefaultActionConfig({
     updatePayload: state => _ => state.count,
     updateState: count => merge({ count }),
   }),
 };
 
 const createClient = () => {
-  let uState: StateWithHistory<State, PBT> = {
+  let uState: UState<State, PBT> = {
     effects: [],
     history: {
       stack: [],
@@ -54,9 +54,7 @@ const createClient = () => {
     },
   };
 
-  const { uReducer, actionCreators } = makeCustomUndoableReducer<State, PBT>(
-    configs
-  );
+  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(configs);
 
   const { addToCount, updateCount, multiplyCount } = actionCreators;
 
@@ -228,7 +226,7 @@ describe('syncing actions with conflicts ', () => {
     client2.push(
       effects2.map(({ type, payload }) =>
         // TODO: typing
-        configs[type].getActionForUndo({ type, payload } as any)
+        configs[type].makeActionForUndo({ type, payload } as any)
       )
     );
 

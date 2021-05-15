@@ -19,10 +19,6 @@ export type DefaultKeysOf<PBT extends PayloadConfigByType> = ValueOf<
   }
 >;
 
-export type ToPayloadConfigByType<PBT extends StringMap> = {
-  [K in keyof PBT]: DefaultPayloadConfig<PBT[K]>;
-};
-
 export type PayloadConfig<PO = any, PUR = any> = {
   original: PO;
   undoRedo: PUR;
@@ -75,8 +71,10 @@ export type PartialActionConfig<
   initPayload: (
     state: S
   ) => (original: PBT[K]['original']) => PBT[K]['undoRedo'];
-  getActionForUndo: ActionConvertor<PBT, K>;
-  getActionForRedo: ActionConvertor<PBT, K>;
+  makeActionForUndo: ActionConvertor<PBT, K>;
+  // Probably there is no real use-case for changing the action type on redo,
+  // so perhaps 'makePayloadForRedo' would be better.
+  makeActionForRedo: ActionConvertor<PBT, K>;
   updatePayloadOnUndo?: Updater<S, PBT[K]['undoRedo']>;
   updatePayloadOnRedo?: Updater<S, PBT[K]['undoRedo']>;
 };
@@ -90,18 +88,11 @@ export type ActionConfig<
   updateStateOnUndo: Updater<PBT[K]['original'], S>;
 };
 
-export type DefaultActionConfigByType<S, PBT extends StringMap> = {
-  [K in keyof PBT]: {
-    updatePayload: Updater<S, PBT[K]>;
-    updateState: Updater<PBT[K], S>;
-  };
-};
-
-export type UndoConfigByType<S, PBT extends PayloadConfigByType> = {
+export type PartialActionConfigByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PartialActionConfig<S, PBT, K>;
 };
 
-export type UndoRedoConfigByType<S, PBT extends PayloadConfigByType> = {
+export type ActionConfigByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: ActionConfig<S, PBT, K>;
 };
 
@@ -129,8 +120,8 @@ export type UActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K], options?: UOptions) => UAction<K, PBT[K]>;
 };
 
-export type PayloadHandlersByType<S, PBT extends StringMap> = {
-  [K in keyof PBT]: (p: PBT[K], options?: UOptions) => S;
+export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: (p: PBT[K]['original'], options?: UOptions) => S;
 };
 
 export type HistoryItem<T, PU> = {
@@ -144,7 +135,7 @@ export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
   }
 >;
 
-export type StateWithHistory<S, PBT extends PayloadConfigByType> = {
+export type UState<S, PBT extends PayloadConfigByType> = {
   state: S;
   history: {
     index: number;
@@ -173,6 +164,6 @@ export type UReducerAction<PBT extends PayloadConfigByType> =
   | OriginalUActionUnion<PBT>;
 
 export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
-  StateWithHistory<S, PBT>,
+  UState<S, PBT>,
   UReducerAction<PBT>
 >;

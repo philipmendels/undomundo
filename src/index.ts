@@ -1,5 +1,5 @@
-export { makeUndoableReducer } from './make-undoable-reducer';
+export { makeUndoableState } from './make-undoable-state';
 
-export { makeCustomUndoableReducer } from './make-custom-undoable-reducer';
+export { makeUndoableReducer } from './make-undoable-reducer';
 
 export { wrapReducer } from './wrap-reducer';
