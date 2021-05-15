@@ -1,4 +1,4 @@
-import { PayloadConfigUndoRedo } from '../src/types';
+import { DefaultPayloadConfig } from '../src/types';
 
 export type State = {
   count: number;
@@ -6,7 +6,7 @@ export type State = {
 
 // Need to use an object type literal. Interface does not seem to work due to index signature.
 export type PBT = {
-  updateCount: PayloadConfigUndoRedo<number>;
+  updateCount: DefaultPayloadConfig<number>;
   addToCount: {
     original: number;
     undoRedo: number;

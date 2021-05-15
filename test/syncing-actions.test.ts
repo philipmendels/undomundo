@@ -2,21 +2,21 @@ import { negate } from 'fp-ts-std/Number';
 import { makeCustomUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
 import {
-  makeAbsoluteUndoRedoConfig,
-  makeRelativeUndoRedoConfig,
+  getAbsoluteActionConfig,
+  getRelativeActionConfig,
 } from '../src/helpers';
 import {
   ActionUnion,
   StateWithHistory,
   PayloadOriginalByType,
   UndoRedoConfigByType,
-  PayloadConfigUndoRedo,
+  DefaultPayloadConfig,
 } from '../src/types';
 import { add, evolve, merge } from '../src/util';
 import { State } from './shared';
 
 type PBT = {
-  updateCount: PayloadConfigUndoRedo<number>;
+  updateCount: DefaultPayloadConfig<number>;
   addToCount: {
     original: number;
     undoRedo: number;
@@ -28,15 +28,15 @@ type PBT = {
 };
 
 const configs: UndoRedoConfigByType<State, PBT> = {
-  addToCount: makeRelativeUndoRedoConfig({
+  addToCount: getRelativeActionConfig({
     getActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
   }),
-  multiplyCount: makeRelativeUndoRedoConfig({
+  multiplyCount: getRelativeActionConfig({
     getActionForUndo: evolve({ payload: p => 1 / p }),
     updateState: amount => evolve({ count: prev => prev * amount }),
   }),
-  updateCount: makeAbsoluteUndoRedoConfig({
+  updateCount: getAbsoluteActionConfig({
     updatePayload: state => _ => state.count,
     updateState: count => merge({ count }),
   }),
