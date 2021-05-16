@@ -7,7 +7,9 @@ import {
   PartialActionConfig,
   ActionConfig,
   Updater,
-  DefaultKeysOf,
+  AssociatedKeysOf,
+  FromToPayload,
+  TuplePayload,
 } from './types';
 
 export const makeRelativePartialActionConfig = <
@@ -58,44 +60,42 @@ export const makeRelativeActionConfig = <
   }),
 });
 
-// export const getDefaultPayloadMapping = <T>(): PayloadMapping<
-//   T,
-//   PayloadUndoRedo<T>
-// > => ({
-//   boxUndoRedo: (undo, redo) => ({ undo, redo }),
-//   getUndo: boxed => boxed.undo,
-//   getRedo: boxed => boxed.redo,
-// });
-
-export const defaultPayloadMapping = {
-  boxUndoRedo: <PO>(undo: PO, redo: PO) => ({ undo, redo }),
-  getUndo: <PO>({ undo }: DefaultPayload<PO>) => undo,
-  getRedo: <PO>({ redo }: DefaultPayload<PO>) => redo,
+export const defaultPayloadMapping: PayloadMapping<
+  unknown,
+  DefaultPayload<unknown>
+> = {
+  boxUndoRedo: (undo, redo) => ({ undo, redo }),
+  getUndo: ({ undo }) => undo,
+  getRedo: ({ redo }) => redo,
 };
 
-export const makeDefaultPartialActionConfig = <
-  PBT extends PayloadConfigByType,
-  K extends DefaultKeysOf<PBT>,
-  S
->({
-  updatePayload,
-}: {
-  updatePayload: Updater<S, PBT[K]['original']>;
-}) =>
-  makeAbsolutePartialActionConfig<PBT, K, S>({
-    payloadMapping: defaultPayloadMapping,
-    updatePayload,
-  });
+export const fromToPayloadMapping: PayloadMapping<
+  unknown,
+  FromToPayload<unknown>
+> = {
+  boxUndoRedo: (from, to) => ({ from, to }),
+  getUndo: ({ from }) => from,
+  getRedo: ({ to }) => to,
+};
 
-export const makeAbsolutePartialActionConfig = <
+export const tuplePayloadMapping: PayloadMapping<
+  unknown,
+  TuplePayload<unknown>
+> = {
+  boxUndoRedo: (undo, redo) => [undo, redo],
+  getUndo: ([undo]) => undo,
+  getRedo: ([_, redo]) => redo,
+};
+
+export const makeAbsolutePartialActionConfig = <PUR>(
+  payloadMapping: PayloadMapping<unknown, PUR>
+) => <
   PBT extends PayloadConfigByType,
-  K extends keyof PBT,
+  K extends AssociatedKeysOf<PBT, PUR>,
   S
 >({
-  payloadMapping,
   updatePayload,
 }: {
-  payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>;
   updatePayload: Updater<S, PBT[K]['original']>;
 }): PartialActionConfig<S, PBT, K> => {
   return {
@@ -122,43 +122,15 @@ export const makeAbsolutePartialActionConfig = <
   };
 };
 
-// export const makeAbsolutePartialActionConfig2 = <
-//   PBT extends PayloadConfigByType,
-//   K extends keyof PBT
-// >(
-//   payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>
-// ) => <S>({
-//   updatePayload,
-// }: {
-//   updatePayload: Updater<S, PBT[K]['original']>;
-// }): PartialActionConfig<S, PBT, K> => {
-//   return {
-//     initPayload: state => original =>
-//       payloadMapping.boxUndoRedo(updatePayload(state)(original), original),
-//     getActionForUndo: ({ type, payload }) => ({
-//       type,
-//       payload: payloadMapping.getUndo(payload),
-//     }),
-//     getActionForRedo: ({ type, payload }) => ({
-//       type,
-//       payload: payloadMapping.getRedo(payload),
-//     }),
-//     updatePayloadOnUndo: state => undoRedo =>
-//       payloadMapping.boxUndoRedo(
-//         payloadMapping.getUndo(undoRedo),
-//         updatePayload(state)(payloadMapping.getRedo(undoRedo))
-//       ),
-//     updatePayloadOnRedo: state => undoRedo =>
-//       payloadMapping.boxUndoRedo(
-//         updatePayload(state)(payloadMapping.getUndo(undoRedo)),
-//         payloadMapping.getRedo(undoRedo)
-//       ),
-//   };
-// };
+export const makeDefaultPartialActionConfig = makeAbsolutePartialActionConfig(
+  defaultPayloadMapping
+);
 
-export const makeDefaultActionConfig = <
+export const makeAbsoluteActionConfig = <PUR>(
+  payloadMapping: PayloadMapping<unknown, PUR>
+) => <
   PBT extends PayloadConfigByType,
-  K extends DefaultKeysOf<PBT>,
+  K extends AssociatedKeysOf<PBT, PUR>,
   S
 >({
   updatePayload,
@@ -166,45 +138,12 @@ export const makeDefaultActionConfig = <
 }: {
   updatePayload: Updater<S, PBT[K]['original']>;
   updateState: Updater<PBT[K]['original'], S>;
-}) =>
-  makeAbsoluteActionConfig({
-    payloadMapping: defaultPayloadMapping,
-    updatePayload,
-    updateState,
-  });
-
-export const makeAbsoluteActionConfig = <
-  S,
-  PBT extends PayloadConfigByType,
-  K extends keyof PBT
->({
-  payloadMapping,
-  updatePayload,
-  updateState,
-}: {
-  payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>;
-  updatePayload: Updater<S, PBT[K]['original']>;
-  updateState: Updater<PBT[K]['original'], S>;
 }): ActionConfig<S, PBT, K> => ({
   updateStateOnRedo: updateState,
   updateStateOnUndo: updateState,
-  ...makeAbsolutePartialActionConfig({ payloadMapping, updatePayload }),
+  ...makeAbsolutePartialActionConfig(payloadMapping)({ updatePayload }),
 });
 
-// export const makeAbsoluteActionConfig2 = <
-//   S,
-//   PBT extends PayloadConfigByType,
-//   K extends keyof PBT
-// >(
-//   payloadMapping: PayloadMapping<PBT[K]['original'], PBT[K]['undoRedo']>
-// ) => ({
-//   updatePayload,
-//   updateState,
-// }: {
-//   updatePayload: Updater<S, PBT[K]['original']>;
-//   updateState: Updater<PBT[K]['original'], S>;
-// }): ActionConfig<S, PBT, K> => ({
-//   updateStateOnRedo: updateState,
-//   updateStateOnUndo: updateState,
-//   ...makeAbsolutePartialActionConfig({ payloadMapping, updatePayload }),
-// });
+export const makeDefaultActionConfig = makeAbsoluteActionConfig(
+  defaultPayloadMapping
+);

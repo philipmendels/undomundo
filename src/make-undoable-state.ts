@@ -1,4 +1,4 @@
-import { makeUndoableReducer } from '.';
+import { makeUndoableReducer } from './make-undoable-reducer';
 import { redo, undo } from './action-creators';
 import {
   UState,

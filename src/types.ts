@@ -13,9 +13,9 @@ export type Action<T = string, P = any> = {
 
 export type PayloadConfigByType = Record<string, PayloadConfig>;
 
-export type DefaultKeysOf<PBT extends PayloadConfigByType> = ValueOf<
+export type AssociatedKeysOf<PBT extends PayloadConfigByType, PUR> = ValueOf<
   {
-    [K in keyof PBT]: PBT[K] extends DefaultPayloadConfig<any> ? K : never;
+    [K in keyof PBT]: PBT[K]['undoRedo'] extends PUR ? K : never;
   }
 >;
 
@@ -109,12 +109,13 @@ export type ActionConfigByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: ActionConfig<S, PBT, K>;
 };
 
-export type DefaultPayload<T> = {
-  undo: T;
-  redo: T;
-};
+export type DefaultPayload<T> = { undo: T; redo: T };
+export type FromToPayload<T> = { from: T; to: T };
+export type TuplePayload<T> = [T, T];
 
 export type DefaultPayloadConfig<T> = PayloadConfig<T, DefaultPayload<T>>;
+export type FromToPayloadConfig<T> = PayloadConfig<T, FromToPayload<T>>;
+export type TuplePayloadConfig<T> = PayloadConfig<T, TuplePayload<T>>;
 
 export type UpdatersByType<S, PBT extends StringMap> = {
   [K in keyof PBT]: { undo: Updater<PBT[K], S>; redo: Updater<PBT[K], S> };
