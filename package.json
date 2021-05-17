@@ -46,6 +46,7 @@
   ],
   "devDependencies": {
     "@size-limit/preset-small-lib": "^4.10.2",
+    "@types/uuid": "^8.3.0",
     "husky": "^6.0.0",
     "size-limit": "^4.10.2",
     "ts-unused-exports": "^7.0.3",
@@ -55,7 +56,8 @@
   },
   "dependencies": {
     "fp-ts": "^2.10.4",
-    "fp-ts-std": "^0.10.0"
+    "fp-ts-std": "^0.10.0",
+    "uuid": "^8.3.2"
   },
   "resolutions": {
     "**/@typescript-eslint/eslint-plugin": "^4.23.0",

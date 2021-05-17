@@ -1,6 +1,7 @@
 import { makeDefaultActionConfig } from '../src/helpers';
+import { createInitialHistory } from '../src/internal';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
-import { DefaultPayloadConfig, UState } from '../src/types';
+import { DefaultPayloadConfig, UState } from '../src/types/main';
 import { merge } from '../src/util';
 
 type State = {
@@ -15,10 +16,7 @@ type CallbackParams = OnChangeEvent<State, PBT>[];
 
 let newUState: UState<State, PBT> = {
   effects: [],
-  history: {
-    stack: [],
-    index: -1,
-  },
+  history: createInitialHistory(),
   state: {
     count: 2,
   },

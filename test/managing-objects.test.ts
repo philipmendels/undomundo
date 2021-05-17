@@ -8,12 +8,13 @@ import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
 } from '../src/helpers';
+import { createInitialHistory } from '../src/internal';
 import {
   ActionConfigByType,
   DefaultPayloadConfig,
   RelativePayloadConfig,
   UState,
-} from '../src/types';
+} from '../src/types/main';
 import { evolve, merge } from '../src/util';
 
 type Color = 'red' | 'green' | 'blue';
@@ -113,10 +114,7 @@ const { setColor, add, remove, set } = actionCreators;
 
 let uState: UState<State, PBT> = {
   effects: [],
-  history: {
-    stack: [],
-    index: -1,
-  },
+  history: createInitialHistory(),
   state: {
     cards: {
       a: {

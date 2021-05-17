@@ -1,3 +1,5 @@
+import { History } from './history';
+
 export type Endomorphism<T> = (t: T) => T;
 
 export type Updater<A, B> = (a: A) => Endomorphism<B>;
@@ -33,6 +35,10 @@ export type PayloadOriginalByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PBT[K]['original'];
 };
 
+export type PayloadUndoRedoByType<PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: PBT[K]['undoRedo'];
+};
+
 export type ActionUnion<PBT extends StringMap> = ValueOf<
   {
     [K in keyof PBT]: Action<K, PBT[K]>;
@@ -59,6 +65,10 @@ export type UActionUnion<PBT extends StringMap> = ValueOf<
 
 export type OriginalActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
   PayloadOriginalByType<PBT>
+>;
+
+export type UndoRedoActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
+  PayloadUndoRedoByType<PBT>
 >;
 
 export type OriginalUActionUnion<
@@ -138,23 +148,9 @@ export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: (p: PBT[K]['original'], options?: UOptions) => S;
 };
 
-export type HistoryItem<T, PU> = {
-  type: T;
-  payload: PU;
-};
-
-export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: HistoryItem<K, PBT[K]['undoRedo']>;
-  }
->;
-
 export type UState<S, PBT extends PayloadConfigByType> = {
   state: S;
-  history: {
-    index: number;
-    stack: HistoryItemUnion<PBT>[];
-  };
+  history: History<PBT>;
   effects: OriginalActionUnion<PBT>[];
 };
 

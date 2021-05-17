@@ -5,6 +5,7 @@ import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
 } from '../src/helpers';
+import { createInitialHistory } from '../src/internal';
 import {
   ActionUnion,
   UState,
@@ -12,7 +13,7 @@ import {
   ActionConfigByType,
   DefaultPayloadConfig,
   RelativePayloadConfig,
-} from '../src/types';
+} from '../src/types/main';
 import { add, evolve, merge } from '../src/util';
 
 type State = {
@@ -43,10 +44,7 @@ const configs: ActionConfigByType<State, PBT> = {
 const createClient = () => {
   let uState: UState<State, PBT> = {
     effects: [],
-    history: {
-      stack: [],
-      index: -1,
-    },
+    history: createInitialHistory(),
     state: {
       count: 0,
     },
