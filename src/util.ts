@@ -8,16 +8,21 @@ import {
   ValueOf,
   Endomorphism,
   UndoableActionUnion,
-} from './types';
+} from './types/main';
 
 export const add = (a: number) => (b: number) => a + b;
 export const add1 = add(1);
 export const subtract = (a: number) => add(-a);
 export const subtract1 = subtract(1);
 
-export const updateArrayAt = <A>(i: number, item: A) => (array: A[]): A[] => {
+export const updateArrayAt = <A>(i: number, item: A) =>
+  modifyArrayAt(i, () => item);
+
+export const modifyArrayAt = <A>(i: number, fn: Endomorphism<A>) => (
+  array: A[]
+): A[] => {
   const clone = array.slice();
-  clone[i] = item;
+  clone[i] = fn(array[i]);
   return clone;
 };
 
@@ -29,7 +34,7 @@ export const merge = <S extends StringMap, P extends Partial<S>>(
   ...partial,
 });
 
-type Evolver<T> = {
+export type Evolver<T> = {
   [K in keyof T]?: Endomorphism<T[K]>;
 };
 

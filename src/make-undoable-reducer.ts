@@ -5,7 +5,7 @@ import {
   UpdatersByType,
   PayloadOriginalByType,
   UActionCreatorsByType,
-} from './types';
+} from './types/main';
 import { makeReducer, mapRecord } from './util';
 
 export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(

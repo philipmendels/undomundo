@@ -10,7 +10,7 @@ import {
   AssociatedKeysOf,
   FromToPayload,
   TuplePayload,
-} from './types';
+} from './types/main';
 
 export const makeRelativePartialActionConfig = <
   S,

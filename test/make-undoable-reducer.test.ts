@@ -4,12 +4,13 @@ import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
 } from '../src/helpers';
+import { createInitialHistory } from '../src/internal';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
 import {
   DefaultPayloadConfig,
   RelativePayloadConfig,
   UState,
-} from '../src/types';
+} from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
 type State = {
@@ -44,10 +45,7 @@ const { addToCount, addToCount_alt, updateCount } = actionCreators;
 describe('makeUndoableReducer', () => {
   let uState: UState<State, PBT> = {
     effects: [],
-    history: {
-      stack: [],
-      index: -1,
-    },
+    history: createInitialHistory(),
     state: {
       count: 3,
     },

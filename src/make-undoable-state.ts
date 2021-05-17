@@ -6,7 +6,7 @@ import {
   UReducerAction,
   PayloadConfigByType,
   ActionConfigByType,
-} from './types';
+} from './types/main';
 import { mapRecord } from './util';
 
 export type OnChangeEvent<S, PBT extends PayloadConfigByType> = {
