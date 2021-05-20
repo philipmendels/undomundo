@@ -26,14 +26,7 @@ export interface ParentConnection {
 export interface Branch<PBT extends PayloadConfigByType> {
   id: string;
   number: number;
-  parent?: {
-    branchId: string;
-    position: PositionOnBranch;
-  };
-  parentOriginal?: {
-    branchId: string;
-    position: PositionOnBranch;
-  };
+  parent?: ParentConnection;
   lastPosition?: PositionOnBranch;
   created: Date;
   stack: HistoryItemUnion<PBT>[];

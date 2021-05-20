@@ -6,6 +6,7 @@ import {
   UReducerAction,
   PayloadConfigByType,
   ActionConfigByType,
+  UOptions,
 } from './types/main';
 import { mapRecord } from './util';
 
@@ -15,18 +16,24 @@ export type OnChangeEvent<S, PBT extends PayloadConfigByType> = {
   oldUState: UState<S, PBT>;
 };
 
+export type MakeUndoableStateProps<S, PBT extends PayloadConfigByType> = {
+  initialUState: UState<S, PBT>;
+  actionConfigs: ActionConfigByType<S, PBT>;
+  options?: UOptions;
+  onChange?: (event: OnChangeEvent<S, PBT>) => void;
+};
+
 export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
   initialUState,
   actionConfigs,
+  options,
   onChange,
-}: {
-  initialUState: UState<S, PBT>;
-  actionConfigs: ActionConfigByType<S, PBT>;
-  onChange?: (event: OnChangeEvent<S, PBT>) => void;
-}) => {
+}: MakeUndoableStateProps<S, PBT>) => {
   let uState = initialUState;
+
   const { uReducer, actionCreators } = makeUndoableReducer<S, PBT>(
-    actionConfigs
+    actionConfigs,
+    options
   );
 
   const withOnChange = (
@@ -40,6 +47,7 @@ export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
     }
     return newUState;
   };
+
   return {
     getCurrentUState: () => uState,
 

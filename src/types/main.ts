@@ -54,7 +54,7 @@ export type UndoableActionUnion<PBT extends StringMap> = ValueOf<
 >;
 
 export type UAction<T, P> = Action<T, P> & {
-  meta?: UOptions;
+  meta?: UActionOptions;
 };
 
 export type UActionUnion<PBT extends StringMap> = ValueOf<
@@ -135,17 +135,20 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
 };
 
-type UOptions = {
+type UActionOptions = {
   skipHistory?: boolean;
   skipEffects?: boolean;
 };
 
 export type UActionCreatorsByType<PBT extends StringMap> = {
-  [K in keyof PBT]: (payload: PBT[K], options?: UOptions) => UAction<K, PBT[K]>;
+  [K in keyof PBT]: (
+    payload: PBT[K],
+    options?: UActionOptions
+  ) => UAction<K, PBT[K]>;
 };
 
 export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: (p: PBT[K]['original'], options?: UOptions) => S;
+  [K in keyof PBT]: (p: PBT[K]['original'], options?: UActionOptions) => S;
 };
 
 export type UState<S, PBT extends PayloadConfigByType> = {
@@ -177,3 +180,8 @@ export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   UState<S, PBT>,
   UReducerAction<PBT>
 >;
+
+export type UOptions = {
+  useBranchingHistory?: boolean;
+  maxHistoryLength?: number;
+};

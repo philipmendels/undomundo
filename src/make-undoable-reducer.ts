@@ -5,11 +5,13 @@ import {
   UpdatersByType,
   PayloadOriginalByType,
   UActionCreatorsByType,
+  UOptions,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
 
 export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
-  actionConfigs: ActionConfigByType<S, PBT>
+  actionConfigs: ActionConfigByType<S, PBT>,
+  options?: UOptions
 ) => {
   const { reducer, actionCreators } = makeReducer<
     S,
@@ -23,7 +25,7 @@ export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
     )
   );
   return {
-    uReducer: wrapReducer<S, PBT>(reducer, actionConfigs),
+    uReducer: wrapReducer<S, PBT>(reducer, actionConfigs, options),
     actionCreators: mapRecord(actionCreators)<
       UActionCreatorsByType<PayloadOriginalByType<PBT>>
     >(ac => (payload, options) => ({
