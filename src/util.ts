@@ -1,4 +1,4 @@
-import { pipe } from 'fp-ts/function';
+import { identity, pipe, Predicate } from 'fp-ts/function';
 import { mapWithIndex } from 'fp-ts/Record';
 import {
   StringMap,
@@ -27,7 +27,7 @@ export const modifyArrayAt = <A>(i: number, fn: Endomorphism<A>) => (
 };
 
 // TODO: strict version hasOwnProperty check?
-export const merge = <S extends StringMap, P extends Partial<S>>(
+export const merge = <S extends StringMap | undefined, P extends Partial<S>>(
   partial: P
 ): Endomorphism<S> => state => ({
   ...state,
@@ -45,13 +45,23 @@ export const evolve = <S extends StringMap, E extends Evolver<S>>(
   ...pipe(
     evolver as Record<string, any>,
     mapWithIndex((k, updater) => {
-      if (state.hasOwnProperty(k)) {
-        return updater(state[k]);
-      }
-      throw new Error('wrong key');
+      return updater(state[k]);
+      // if (state.hasOwnProperty(k)) {
+      //   return updater(state[k]);
+      // }
+      // throw new Error(`wrong key: ${k}`);
     })
   ),
 });
+
+export const ifElse = <A>(
+  f: Predicate<A>,
+  onTrue: Endomorphism<A>,
+  onFalse: Endomorphism<A>
+): Endomorphism<A> => x => (f(x) ? onTrue(x) : onFalse(x));
+
+export const when = <A>(f: Predicate<A>, onTrue: Endomorphism<A>) =>
+  ifElse(f, onTrue, identity);
 
 export const mapRecord = <A extends StringMap>(a: A) => <B extends StringMap>(
   updater: (va: ValueOf<A>) => ValueOf<B>

@@ -1,7 +1,7 @@
 import { append } from 'fp-ts/Array';
 import { identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
-import { getCurrentBranch, getCurrentIndex } from './internal';
+import { addHistoryItem, getCurrentBranch, getCurrentIndex } from './internal';
 import { HistoryItemUnion } from './types/history';
 import {
   PayloadConfigByType,
@@ -10,16 +10,24 @@ import {
   UReducerOf,
   ReducerOf,
   OriginalActionUnion,
+  UOptions,
 } from './types/main';
 import { add1, evolve, Evolver, modifyArrayAt, subtract1 } from './util';
 
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
-  actionConfigs: PartialActionConfigByType<S, PBT>
+  actionConfigs: PartialActionConfigByType<S, PBT>,
+  options?: UOptions
 ): UReducerOf<S, PBT> => (uState, action) => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
+
+  const mergedOptions: Required<UOptions> = {
+    useBranchingHistory: false,
+    maxHistoryLength: Infinity,
+    ...options,
+  };
 
   const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
@@ -117,29 +125,20 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       // If used with Redux this reducer may receive unrelated actions.
       const skipEffects = !config || meta?.skipEffects;
 
-      const id = v4();
-
       return pipe(
         uState,
         evolve({
           history: skipHistory
             ? identity
-            : evolve({
-                currentPosition: evolve({
-                  globalIndex: add1,
-                  actionId: () => id,
-                }),
-                branches: evolve({
-                  [currentBranch.id]: evolve({
-                    stack: append({
-                      type,
-                      payload: config.initPayload(state)(payload),
-                      id,
-                      created: new Date(),
-                    }),
-                  }),
-                }),
-              }),
+            : addHistoryItem(
+                {
+                  type,
+                  payload: config.initPayload(state)(payload),
+                  id: v4(),
+                  created: new Date(),
+                },
+                mergedOptions
+              ),
           state: () => newState,
           effects: skipEffects ? identity : append(originalAction),
         })
