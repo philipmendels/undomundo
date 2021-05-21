@@ -6,11 +6,19 @@ import {
   UOptions,
 } from './types/main';
 import { v4 } from 'uuid';
-import { add1, evolve, ifElse, when, merge, subtract } from './util';
+import {
+  add1,
+  evolve,
+  ifElse,
+  when,
+  merge,
+  subtract,
+  whenIsDefined,
+  slice,
+} from './util';
 import { append } from 'fp-ts/Array';
 import { flow } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
-import { fromNullable, map, toUndefined } from 'fp-ts/lib/Option';
 
 export const createInitialHistory = <
   PBT extends PayloadConfigByType
@@ -113,7 +121,7 @@ const clearFuture = <PBT extends PayloadConfigByType>() =>
       evolve({
         branches: evolve({
           [hist.currentBranchId]: evolve({
-            stack: prev => prev.slice(0, getCurrentIndex(hist) + 1),
+            stack: slice(0, getCurrentIndex(hist) + 1),
           }),
         }),
       }),
@@ -150,24 +158,18 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
           branches: flow(
             evolve({
               [hist.currentBranchId]: evolve({
-                stack: prev => prev.slice(diff),
+                stack: slice(diff),
               }),
             }),
             mapR(
               evolve({
-                parent: flow(
-                  fromNullable,
-                  map(
-                    evolve({
-                      position: evolve({ globalIndex: subtract(diff) }),
-                    })
-                  ),
-                  toUndefined
+                parent: whenIsDefined(
+                  evolve({
+                    position: evolve({ globalIndex: subtract(diff) }),
+                  })
                 ),
-                lastPosition: flow(
-                  fromNullable,
-                  map(evolve({ globalIndex: subtract(diff) })),
-                  toUndefined
+                lastPosition: whenIsDefined(
+                  evolve({ globalIndex: subtract(diff) })
                 ),
               })
             )
@@ -211,7 +213,7 @@ export const addActionToNewBranch = <PBT extends PayloadConfigByType>(
         evolve({
           [hist.currentBranchId]: evolve({
             lastPosition: () => hist.currentPosition,
-            stack: prev => prev.slice(currentIndex + 1),
+            stack: slice(currentIndex + 1),
             parent: () => ({
               branchId: newBranchId,
               position: hist.currentPosition,

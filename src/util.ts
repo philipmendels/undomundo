@@ -63,6 +63,15 @@ export const ifElse = <A>(
 export const when = <A>(f: Predicate<A>, onTrue: Endomorphism<A>) =>
   ifElse(f, onTrue, identity);
 
+export const whenIsDefined = <A, B>(fn: (a: A) => B) => (a: A | undefined) =>
+  a === undefined ? a : fn(a);
+
+export const slice = (...params: Parameters<typeof Array.prototype.slice>) => <
+  T
+>(
+  a: T[]
+) => a.slice(...params);
+
 export const mapRecord = <A extends StringMap>(a: A) => <B extends StringMap>(
   updater: (va: ValueOf<A>) => ValueOf<B>
 ) => mapRecordWithKey(a)<B>((_, v) => updater(v));
