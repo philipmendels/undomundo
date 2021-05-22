@@ -66,49 +66,59 @@ export const getBranchActions = <PBT extends PayloadConfigByType>(
     payload,
   }));
 
+type CollectedIds = {
+  orphanIds: string[];
+  otherIds: string[];
+};
+
+const getParents = <PBT extends PayloadConfigByType>(
+  hist: History<PBT>,
+  branch: Branch<PBT>,
+  branchList: Branch<PBT>[],
+  allIds: string[]
+): Branch<PBT>[] =>
+  allIds.includes(branch.id)
+    ? branchList
+    : branch.parent
+    ? getParents(
+        hist,
+        hist.branches[branch.parent.branchId],
+        branchList,
+        allIds
+      )
+    : [...branchList, branch];
+
 const clearOrphanBranches = <PBT extends PayloadConfigByType>(
   modus: 'HEAD' | 'TAIL'
 ) =>
   wrap<PBT>(hist => {
     const currentBranch = getCurrentBranch(hist);
 
-    const orphanIds: string[] = [];
-    const otherIds = [currentBranch.id];
-
-    Object.entries(hist.branches).forEach(([_, b]) => {
-      const allIds = [...orphanIds, ...otherIds];
-      const ids: string[] = [];
-      let branch = b;
-
-      while (!allIds.includes(branch.id)) {
-        ids.push(branch.id);
-        if (branch.parent) {
-          branch = hist.branches[branch.parent.branchId];
-        } else {
-          break;
-        }
-      }
-
-      if (ids.length) {
-        const parent = branch.parent!;
-
-        if (orphanIds.includes(parent.branchId)) {
-          orphanIds.push(...ids);
-        } else if (parent.branchId === hist.currentBranchId) {
+    const { orphanIds } = Object.entries(hist.branches).reduce<CollectedIds>(
+      ({ orphanIds, otherIds }, [_, b]) => {
+        const branchList = getParents(hist, b, [], orphanIds.concat(otherIds));
+        if (branchList.length) {
+          const parent = branchList[branchList.length - 1].parent!;
           const idx = parent.position.globalIndex;
+          const ids = branchList.map(b => b.id);
           if (
-            (modus === 'HEAD' && idx < 0) ||
-            (modus === 'TAIL' && idx > currentBranch.stack.length - 1)
+            orphanIds.includes(parent.branchId) ||
+            (parent.branchId === hist.currentBranchId &&
+              ((modus === 'HEAD' && idx < 0) ||
+                (modus === 'TAIL' && idx > currentBranch.stack.length - 1)))
           ) {
             orphanIds.push(...ids);
           } else {
             otherIds.push(...ids);
           }
-        } else {
-          otherIds.push(...ids);
         }
+        return { orphanIds, otherIds };
+      },
+      {
+        orphanIds: [],
+        otherIds: [currentBranch.id],
       }
-    });
+    );
 
     return evolve({
       branches: filter(b => !orphanIds.includes(b.id)),
