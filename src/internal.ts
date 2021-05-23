@@ -1,9 +1,4 @@
-import {
-  Branch,
-  History,
-  HistoryItemUnion,
-  PositionOnBranch,
-} from './types/history';
+import { Branch, History, HistoryItemUnion } from './types/history';
 import {
   Endomorphism,
   PayloadConfigByType,
@@ -25,21 +20,20 @@ import { append } from 'fp-ts/Array';
 import { flow } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
+let branchCounter = 0;
+
 export const createInitialHistory = <
   PBT extends PayloadConfigByType
 >(): History<PBT> => {
   const initialBranchId = v4();
   return {
-    currentPosition: {
-      globalIndex: -1,
-      actionId: 'start',
-    },
+    currentIndex: -1,
     branches: {
       [initialBranchId]: {
         id: initialBranchId,
         created: new Date(),
         stack: [],
-        number: 1,
+        name: `branch ${branchCounter++}`,
       },
     },
     currentBranchId: initialBranchId,
@@ -56,7 +50,7 @@ export const getCurrentBranch = <PBT extends PayloadConfigByType>(
 
 export const getCurrentIndex = <PBT extends PayloadConfigByType>(
   prev: History<PBT>
-) => prev.currentPosition.globalIndex;
+) => prev.currentIndex;
 
 // for testing:
 export const getCurrentBranchActions = <PBT extends PayloadConfigByType>(
@@ -84,10 +78,10 @@ const getParents = <PBT extends PayloadConfigByType>(
 ): Branch<PBT>[] =>
   allIds.includes(branch.id)
     ? branchList
-    : branch.parent
+    : branch.parentConnection
     ? getParents(
         hist,
-        hist.branches[branch.parent.branchId],
+        hist.branches[branch.parentConnection.branchId],
         [...branchList, branch],
         allIds
       )
@@ -103,8 +97,8 @@ const clearOrphanBranches = <PBT extends PayloadConfigByType>(
       ({ orphanIds, otherIds }, [_, b]) => {
         const branchList = getParents(hist, b, [], orphanIds.concat(otherIds));
         if (branchList.length) {
-          const parent = branchList[branchList.length - 1].parent!;
-          const idx = parent.position.globalIndex;
+          const parent = branchList[branchList.length - 1].parentConnection!;
+          const idx = parent.globalIndex;
           const ids = branchList.map(b => b.id);
           // -1 is still a valid index
           if (
@@ -173,9 +167,7 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
 ) =>
   wrap<PBT>(hist => {
     const diff = getCurrentBranch(hist).stack.length - maxHistoryLength;
-    const correctIndex: Endomorphism<PositionOnBranch> = evolve({
-      globalIndex: subtract(diff),
-    });
+    const correctIndex = subtract(diff);
     return when(
       () => diff > 0,
       flow(
@@ -188,16 +180,16 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
             }),
             mapR(
               evolve({
-                parent: whenIsDefined(
+                parentConnection: whenIsDefined(
                   evolve({
-                    position: correctIndex,
+                    globalIndex: correctIndex,
                   })
                 ),
-                lastPosition: whenIsDefined(correctIndex),
+                lastGlobalIndex: whenIsDefined(correctIndex),
               })
             )
           ),
-          currentPosition: correctIndex,
+          currentIndex: correctIndex,
         }),
         clearOrphanBranches('HEAD')
       )
@@ -210,36 +202,33 @@ export const isAtHead = <PBT extends PayloadConfigByType>(
 
 export const addActionToNewBranch = <PBT extends PayloadConfigByType>(
   action: HistoryItemUnion<PBT>
-): Endomorphism<History<PBT>> =>
-  wrap(hist => {
+) =>
+  wrap<PBT>(hist => {
     const currentIndex = getCurrentIndex(hist);
     const newBranchId = v4();
 
     const newBranch: Branch<PBT> = {
       created: new Date(),
       id: newBranchId,
-      number: Math.max(...Object.values(hist.branches).map(b => b.number)) + 1,
+      name: `branch ${branchCounter++}`,
       stack: getCurrentBranch(hist)
         .stack.slice(0, currentIndex + 1)
         .concat(action),
     };
 
     return evolve({
-      currentPosition: evolve({
-        actionId: () => action.id,
-        globalIndex: add1,
-      }),
+      currentIndex: add1,
       currentBranchId: () => newBranchId,
       branches: flow(
         reparentBranches(newBranchId, hist.currentBranchId, currentIndex),
         merge({ [newBranchId]: newBranch }),
         evolve({
           [hist.currentBranchId]: evolve({
-            lastPosition: () => hist.currentPosition,
+            lastGlobalIndex: () => hist.currentIndex,
             stack: slice(currentIndex + 1),
-            parent: () => ({
+            parentConnection: () => ({
               branchId: newBranchId,
-              position: hist.currentPosition,
+              globalIndex: hist.currentIndex,
             }),
           }),
         })
@@ -255,23 +244,20 @@ export const reparentBranches = <PBT extends PayloadConfigByType>(
   mapR(
     when(
       b =>
-        b.parent?.branchId === branchId &&
-        b.parent.position.globalIndex <= index,
+        b.parentConnection?.branchId === branchId &&
+        b.parentConnection.globalIndex <= index,
       evolve({
-        parent: merge({ branchId: newBranchId }),
+        parentConnection: merge({ branchId: newBranchId }),
       })
     )
   );
 
 export const addActionToCurrentBranch = <PBT extends PayloadConfigByType>(
   action: HistoryItemUnion<PBT>
-): Endomorphism<History<PBT>> =>
-  wrap(hist =>
+) =>
+  wrap<PBT>(hist =>
     evolve({
-      currentPosition: evolve({
-        globalIndex: add1,
-        actionId: () => action.id,
-      }),
+      currentIndex: add1,
       branches: evolve({
         [hist.currentBranchId]: evolve({
           stack: append(action),
