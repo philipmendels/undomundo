@@ -1,4 +1,9 @@
-import { Branch, History, HistoryItemUnion } from './types/history';
+import {
+  Branch,
+  History,
+  HistoryItemUnion,
+  PositionOnBranch,
+} from './types/history';
 import {
   Endomorphism,
   PayloadConfigByType,
@@ -83,7 +88,7 @@ const getParents = <PBT extends PayloadConfigByType>(
     ? getParents(
         hist,
         hist.branches[branch.parent.branchId],
-        branchList,
+        [...branchList, branch],
         allIds
       )
     : [...branchList, branch];
@@ -101,10 +106,11 @@ const clearOrphanBranches = <PBT extends PayloadConfigByType>(
           const parent = branchList[branchList.length - 1].parent!;
           const idx = parent.position.globalIndex;
           const ids = branchList.map(b => b.id);
+          // -1 is still a valid index
           if (
             orphanIds.includes(parent.branchId) ||
             (parent.branchId === hist.currentBranchId &&
-              ((modus === 'HEAD' && idx < 0) ||
+              ((modus === 'HEAD' && idx < -1) ||
                 (modus === 'TAIL' && idx > currentBranch.stack.length - 1)))
           ) {
             orphanIds.push(...ids);
@@ -135,6 +141,12 @@ const clearFuture = <PBT extends PayloadConfigByType>() =>
           }),
         }),
       }),
+      // This will be rare in practice, because the future
+      // will only be cleared when the useBranchingHistory
+      // options is false, so there will be no other branches
+      // to clear at all. However, it may be necessary when
+      // the useBranchingHistory is changed, at runtime, or
+      // at application start with a persisted undo-history.
       clearOrphanBranches('TAIL')
     )
   );
@@ -161,6 +173,9 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
 ) =>
   wrap<PBT>(hist => {
     const diff = getCurrentBranch(hist).stack.length - maxHistoryLength;
+    const correctIndex: Endomorphism<PositionOnBranch> = evolve({
+      globalIndex: subtract(diff),
+    });
     return when(
       () => diff > 0,
       flow(
@@ -175,16 +190,14 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
               evolve({
                 parent: whenIsDefined(
                   evolve({
-                    position: evolve({ globalIndex: subtract(diff) }),
+                    position: correctIndex,
                   })
                 ),
-                lastPosition: whenIsDefined(
-                  evolve({ globalIndex: subtract(diff) })
-                ),
+                lastPosition: whenIsDefined(correctIndex),
               })
             )
           ),
-          currentPosition: evolve({ globalIndex: subtract(diff) }),
+          currentPosition: correctIndex,
         }),
         clearOrphanBranches('HEAD')
       )
