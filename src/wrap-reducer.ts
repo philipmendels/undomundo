@@ -43,13 +43,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
         uState,
         evolve({
           history: evolve({
-            currentPosition: evolve({
-              globalIndex: subtract1,
-              actionId: () =>
-                currentIndex === 0
-                  ? 'start'
-                  : currentBranch.stack[currentIndex - 1].id,
-            }),
+            currentIndex: subtract1,
             branches: config.updatePayloadOnUndo
               ? evolve({
                   [currentBranch.id]: evolve({
@@ -84,10 +78,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
         uState,
         evolve({
           history: evolve({
-            currentPosition: evolve({
-              globalIndex: add1,
-              actionId: () => currentBranch.stack[currentIndex + 1].id,
-            }),
+            currentIndex: add1,
             branches: config.updatePayloadOnRedo
               ? evolve({
                   [currentBranch.id]: evolve({

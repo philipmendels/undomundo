@@ -10,7 +10,7 @@ import {
   makeUndoableState,
   MakeUndoableStateProps,
 } from '../src/make-undoable-state';
-import { ParentConnection, PositionOnBranch } from '../src/types/history';
+import { ParentConnection } from '../src/types/history';
 import {
   OriginalActionUnion,
   RelativePayloadConfig,
@@ -110,18 +110,12 @@ describe('branching', () => {
       },
     ]);
 
-    expect(oldBranch.parent).toStrictEqual<ParentConnection>({
+    expect(oldBranch.parentConnection).toStrictEqual<ParentConnection>({
       branchId: newBranch.id,
-      position: {
-        globalIndex: 1,
-        actionId: newBranch.stack[1].id,
-      },
+      globalIndex: 1,
     });
 
-    expect(oldBranch.lastPosition).toStrictEqual<PositionOnBranch>({
-      globalIndex: 1,
-      actionId: newBranch.stack[1].id,
-    });
+    expect(oldBranch.lastGlobalIndex).toBe(1);
 
     expect(getBranchActions(newBranch)).toStrictEqual<
       OriginalActionUnion<PBT>[]
@@ -259,18 +253,12 @@ describe('branching', () => {
       ]
     );
 
-    expect(branch1.parent).toStrictEqual<ParentConnection>({
+    expect(branch1.parentConnection).toStrictEqual<ParentConnection>({
       branchId: branch2.id,
-      position: {
-        globalIndex: -1,
-        actionId: 'start',
-      },
+      globalIndex: -1,
     });
 
-    expect(branch1.lastPosition).toStrictEqual<PositionOnBranch>({
-      globalIndex: -1,
-      actionId: 'start',
-    });
+    expect(branch1.lastGlobalIndex).toBe(-1);
 
     expect(getBranchActions(branch2)).toStrictEqual<OriginalActionUnion<PBT>[]>(
       [
@@ -311,20 +299,14 @@ describe('branching', () => {
       ]
     );
 
-    expect(branch1.parent).toStrictEqual<ParentConnection>({
+    expect(branch1.parentConnection).toStrictEqual<ParentConnection>({
       branchId: branch3.id,
-      position: {
-        globalIndex: -1,
-        actionId: 'start',
-      },
+      globalIndex: -1,
     });
 
-    expect(branch2.parent).toStrictEqual<ParentConnection>({
+    expect(branch2.parentConnection).toStrictEqual<ParentConnection>({
       branchId: branch3.id,
-      position: {
-        globalIndex: 0,
-        actionId: branch3.stack[0].id,
-      },
+      globalIndex: 0,
     });
 
     newUState = addToCount(11);
@@ -334,8 +316,8 @@ describe('branching', () => {
     branch3 = newUState.history.branches[branch3.id];
 
     expect(branch1).toBeUndefined();
-    expect(branch2.parent!.branchId).toBe(branch3.id);
-    expect(branch2.parent!.position.globalIndex).toBe(-1);
+    expect(branch2.parentConnection!.branchId).toBe(branch3.id);
+    expect(branch2.parentConnection!.globalIndex).toBe(-1);
 
     expect(getBranchActions(branch3)).toStrictEqual<OriginalActionUnion<PBT>[]>(
       [
