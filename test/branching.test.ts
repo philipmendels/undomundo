@@ -79,7 +79,7 @@ describe('branching', () => {
       options: { useBranchingHistory: true },
     });
 
-    const prevUState = newUState;
+    const prevUState = props.initialUState;
 
     const { addToCount } = undoables;
 
@@ -139,5 +139,215 @@ describe('branching', () => {
         payload: 7,
       },
     ]);
+  });
+
+  it('maxHistory option works', () => {
+    const { undoables } = makeUndoableState({
+      ...props,
+      options: { maxHistoryLength: 3 },
+    });
+
+    const { addToCount } = undoables;
+
+    addToCount(2);
+    addToCount(3);
+    newUState = addToCount(5);
+
+    expect(getCurrentBranch(newUState.history).stack.length).toBe(3);
+
+    newUState = addToCount(7);
+
+    const currentBranch = getCurrentBranch(newUState.history);
+
+    expect(currentBranch.stack.length).toBe(3);
+
+    expect(getBranchActions(currentBranch)).toStrictEqual<
+      OriginalActionUnion<PBT>[]
+    >([
+      {
+        type: 'addToCount',
+        payload: 3,
+      },
+      {
+        type: 'addToCount',
+        payload: 5,
+      },
+      {
+        type: 'addToCount',
+        payload: 7,
+      },
+    ]);
+  });
+
+  it('clearOrphanBranches works in case of clearing the past', () => {
+    const { undoables, undo, getCurrentUState } = makeUndoableState({
+      ...props,
+      options: { maxHistoryLength: 2, useBranchingHistory: true },
+    });
+
+    const { addToCount } = undoables;
+
+    let branch1 = getCurrentBranch(getCurrentUState().history);
+
+    addToCount(2);
+    addToCount(3);
+    undo();
+    addToCount(5);
+    newUState = addToCount(7);
+    branch1 = newUState.history.branches[branch1.id];
+    expect(branch1).toBeDefined();
+    newUState = addToCount(11);
+    branch1 = newUState.history.branches[branch1.id];
+    expect(branch1).toBeUndefined();
+  });
+
+  it('clearOrphanBranches works in case of clearing the future', () => {
+    const { undoables, undo } = makeUndoableState({
+      ...props,
+      options: { useBranchingHistory: true },
+    });
+
+    const { addToCount } = undoables;
+
+    addToCount(2);
+    addToCount(3);
+    newUState = addToCount(5);
+    let branch1 = getCurrentBranch(newUState.history);
+    undo();
+    newUState = addToCount(7);
+
+    const { undoables: undoables2, undo: undo2 } = makeUndoableState({
+      ...props,
+      initialUState: newUState,
+      options: { maxHistoryLength: 2 },
+    });
+
+    undo2();
+    newUState = undo2();
+    branch1 = newUState.history.branches[branch1.id];
+    expect(branch1).toBeDefined();
+    newUState = undoables2.addToCount(11);
+    branch1 = newUState.history.branches[branch1.id];
+    expect(branch1).toBeUndefined();
+  });
+
+  it('branching, max-history and clearing orphans works for index 0', () => {
+    const { undoables, undo } = makeUndoableState({
+      ...props,
+      options: { useBranchingHistory: true, maxHistoryLength: 2 },
+    });
+
+    const prevUState = props.initialUState;
+
+    const { addToCount } = undoables;
+
+    addToCount(2);
+    undo();
+    newUState = addToCount(3);
+
+    let branch1 =
+      newUState.history.branches[prevUState.history.currentBranchId];
+
+    let branch2 = getCurrentBranch(newUState.history);
+
+    expect(getBranchActions(branch1)).toStrictEqual<OriginalActionUnion<PBT>[]>(
+      [
+        {
+          type: 'addToCount',
+          payload: 2,
+        },
+      ]
+    );
+
+    expect(branch1.parent).toStrictEqual<ParentConnection>({
+      branchId: branch2.id,
+      position: {
+        globalIndex: -1,
+        actionId: 'start',
+      },
+    });
+
+    expect(branch1.lastPosition).toStrictEqual<PositionOnBranch>({
+      globalIndex: -1,
+      actionId: 'start',
+    });
+
+    expect(getBranchActions(branch2)).toStrictEqual<OriginalActionUnion<PBT>[]>(
+      [
+        {
+          type: 'addToCount',
+          payload: 3,
+        },
+      ]
+    );
+
+    addToCount(5);
+    undo();
+    newUState = addToCount(7);
+
+    branch1 = newUState.history.branches[branch1.id];
+    branch2 = newUState.history.branches[branch2.id];
+    let branch3 = getCurrentBranch(newUState.history);
+
+    expect(getBranchActions(branch2)).toStrictEqual<OriginalActionUnion<PBT>[]>(
+      [
+        {
+          type: 'addToCount',
+          payload: 5,
+        },
+      ]
+    );
+
+    expect(getBranchActions(branch3)).toStrictEqual<OriginalActionUnion<PBT>[]>(
+      [
+        {
+          type: 'addToCount',
+          payload: 3,
+        },
+        {
+          type: 'addToCount',
+          payload: 7,
+        },
+      ]
+    );
+
+    expect(branch1.parent).toStrictEqual<ParentConnection>({
+      branchId: branch3.id,
+      position: {
+        globalIndex: -1,
+        actionId: 'start',
+      },
+    });
+
+    expect(branch2.parent).toStrictEqual<ParentConnection>({
+      branchId: branch3.id,
+      position: {
+        globalIndex: 0,
+        actionId: branch3.stack[0].id,
+      },
+    });
+
+    newUState = addToCount(11);
+
+    branch1 = newUState.history.branches[branch1.id];
+    branch2 = newUState.history.branches[branch2.id];
+    branch3 = newUState.history.branches[branch3.id];
+
+    expect(branch1).toBeUndefined();
+    expect(branch2.parent!.branchId).toBe(branch3.id);
+    expect(branch2.parent!.position.globalIndex).toBe(-1);
+
+    expect(getBranchActions(branch3)).toStrictEqual<OriginalActionUnion<PBT>[]>(
+      [
+        {
+          type: 'addToCount',
+          payload: 7,
+        },
+        {
+          type: 'addToCount',
+          payload: 11,
+        },
+      ]
+    );
   });
 });
