@@ -157,13 +157,23 @@ export type UState<S, PBT extends PayloadConfigByType> = {
   effects: OriginalActionUnion<PBT>[];
 };
 
-export type MetaAction =
-  | {
-      type: 'undo';
-    }
-  | {
-      type: 'redo';
-    };
+export type UndoAction = {
+  type: 'undo';
+};
+
+export type RedoAction = {
+  type: 'redo';
+};
+
+export type TimeTravelAction = {
+  type: 'timeTravel';
+  payload: {
+    branchId?: string;
+    indexOnBranch: number;
+  };
+};
+
+export type MetaAction = UndoAction | RedoAction | TimeTravelAction;
 
 export type Reducer<S, A> = (state: S, action: A) => S;
 

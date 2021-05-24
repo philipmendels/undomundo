@@ -72,6 +72,16 @@ export const slice = (...params: Parameters<typeof Array.prototype.slice>) => <
   a: T[]
 ) => a.slice(...params);
 
+export const repeatApply = <A>(repetitions: number, fn: Endomorphism<A>) => (
+  a: A
+) => {
+  let b = a;
+  for (let i = 0; i < repetitions; i++) {
+    b = fn(b);
+  }
+  return b;
+};
+
 export const mapRecord = <A extends StringMap>(a: A) => <B extends StringMap>(
   updater: (va: ValueOf<A>) => ValueOf<B>
 ) => mapRecordWithKey(a)<B>((_, v) => updater(v));
