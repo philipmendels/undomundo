@@ -22,6 +22,7 @@ import {
   modifyArrayAt,
   subtract1,
   Evolver,
+  repeatApply,
 } from './util';
 import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
@@ -276,7 +277,7 @@ export const addActionToCurrentBranch = <PBT extends PayloadConfigByType>(
 export const undo = <S, PBT extends PayloadConfigByType>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-) => (uState: UState<S, PBT>) => {
+): Endomorphism<UState<S, PBT>> => uState => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -315,7 +316,7 @@ export const undo = <S, PBT extends PayloadConfigByType>(
 export const redo = <S, PBT extends PayloadConfigByType>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-) => (uState: UState<S, PBT>) => {
+): Endomorphism<UState<S, PBT>> => uState => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -348,3 +349,104 @@ export const redo = <S, PBT extends PayloadConfigByType>(
     })
   );
 };
+
+export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
+  reduce: Updater<OriginalActionUnion<PBT>, S>,
+  actionConfigs: PartialActionConfigByType<S, PBT>,
+  indexOnBranch: number
+): Endomorphism<UState<S, PBT>> => uState => {
+  const { history } = uState;
+  const currentIndex = getCurrentIndex(history);
+  const currentBranch = getCurrentBranch(history);
+  if (indexOnBranch === currentIndex) {
+    return uState;
+  } else if (
+    indexOnBranch > currentBranch.stack.length - 1 ||
+    indexOnBranch < -1
+  ) {
+    throw new Error(`Invalid index ${indexOnBranch}`);
+  } else if (indexOnBranch < currentIndex) {
+    return repeatApply(
+      currentIndex - indexOnBranch,
+      undo(reduce, actionConfigs)
+    )(uState);
+  } else {
+    return repeatApply(
+      indexOnBranch - currentIndex,
+      redo(reduce, actionConfigs)
+    )(uState);
+  }
+};
+
+export const getPathFromCommonAncestor = <PBT extends PayloadConfigByType>(
+  history: History<PBT>,
+  branchId: string,
+  path: Branch<PBT>[] = []
+): Branch<PBT>[] => {
+  const branch = history.branches[branchId];
+  if (branch.parentConnection) {
+    const newPath = [branch, ...path];
+    if (branch.parentConnection.branchId === history.currentBranchId) {
+      return newPath;
+    } else {
+      return getPathFromCommonAncestor(
+        history,
+        branch.parentConnection.branchId,
+        newPath
+      );
+    }
+  }
+  throw new Error('Attempt to switch to a branch that is already current.');
+};
+
+export const getBranchSwitchProps = <PBT extends PayloadConfigByType>(
+  history: History<PBT>,
+  branchId: string
+) => {
+  const path = getPathFromCommonAncestor(history, branchId);
+  return {
+    path,
+    parentIndex: path[path.length - 1].parentConnection!.globalIndex,
+    caIndex: path[0].parentConnection!.globalIndex,
+  };
+};
+
+export const updatePath = <PBT extends PayloadConfigByType>(path: string[]) => (
+  prevHistory: History<PBT>
+) =>
+  path.reduce((newHist, pathBranchId) => {
+    const branch = newHist.branches[newHist.currentBranchId];
+    const stack = branch.stack;
+    const pathBranch = newHist.branches[pathBranchId];
+    const parent = pathBranch.parentConnection!;
+
+    const newBranchId = pathBranch.id;
+    const index = parent.globalIndex;
+
+    return pipe(
+      newHist,
+      evolve({
+        currentBranchId: () => newBranchId,
+        branches: flow(
+          reparentBranches(newBranchId, parent.branchId, index),
+          evolve({
+            [branch.id]: merge({
+              stack: stack.slice(index + 1),
+              parentConnection: {
+                branchId: newBranchId,
+                globalIndex: parent.globalIndex,
+              },
+              lastGlobalIndex:
+                branch.id === prevHistory.currentBranchId
+                  ? prevHistory.currentIndex
+                  : branch.lastGlobalIndex,
+            }),
+            [newBranchId]: merge({
+              stack: stack.slice(0, index + 1).concat(pathBranch.stack),
+              parentConnection: undefined,
+            }),
+          })
+        ),
+      })
+    );
+  }, prevHistory);

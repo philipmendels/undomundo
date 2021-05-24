@@ -1,12 +1,15 @@
 import { append } from 'fp-ts/Array';
-import { identity, pipe } from 'fp-ts/function';
+import { flow, identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
 import {
   addHistoryItem,
+  getBranchSwitchProps,
   getCurrentBranch,
   getCurrentIndex,
   redo,
+  timeTravelCurrentBranch,
   undo,
+  updatePath,
 } from './internal';
 import {
   PayloadConfigByType,
@@ -18,7 +21,7 @@ import {
   UOptions,
   MetaAction,
 } from './types/main';
-import { evolve, repeatApply, when } from './util';
+import { evolve, when } from './util';
 
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
@@ -38,39 +41,50 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
 
-  const undoApplied = undo(reduce, actionConfigs);
-  const redoApplied = redo(reduce, actionConfigs);
-
   const action = uReducerAction as MetaAction;
 
   if (action.type === 'undo') {
     return pipe(
       uState,
-      when(() => currentIndex >= 0, undoApplied)
+      when(() => currentIndex >= 0, undo(reduce, actionConfigs))
     );
   } else if (action.type === 'redo') {
     return pipe(
       uState,
-      when(() => currentIndex < currentBranch.stack.length - 1, redoApplied)
+      when(
+        () => currentIndex < currentBranch.stack.length - 1,
+        redo(reduce, actionConfigs)
+      )
     );
   } else if (action.type === 'timeTravel') {
     const { indexOnBranch, branchId = currentBranch.id } = action.payload;
     if (branchId === currentBranch.id) {
-      if (indexOnBranch === currentIndex) {
-        return uState;
-      } else if (
-        indexOnBranch > currentBranch.stack.length - 1 ||
-        indexOnBranch < -1
-      ) {
-        throw new Error(`Invalid index ${indexOnBranch}`);
-      } else if (indexOnBranch < currentIndex) {
-        return repeatApply(currentIndex - indexOnBranch, undoApplied)(uState);
-      } else {
-        return repeatApply(indexOnBranch - currentIndex, redoApplied)(uState);
-      }
+      return timeTravelCurrentBranch(
+        reduce,
+        actionConfigs,
+        indexOnBranch
+      )(uState);
     } else {
-      // TODO: implement switch branch
-      return uState;
+      const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        history,
+        branchId
+      );
+      return pipe(
+        uState,
+        flow(
+          when(
+            () => caIndex < history.currentIndex,
+            timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+          ),
+          evolve({ history: updatePath(path.map(b => b.id)) }),
+          // current branch is updated
+          timeTravelCurrentBranch(
+            reduce,
+            actionConfigs,
+            parentIndex + 1 + indexOnBranch
+          )
+        )
+      );
     }
   } else {
     const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
