@@ -1,8 +1,13 @@
 import { append } from 'fp-ts/Array';
 import { identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
-import { addHistoryItem, getCurrentBranch, getCurrentIndex } from './internal';
-import { HistoryItemUnion } from './types/history';
+import {
+  addHistoryItem,
+  getCurrentBranch,
+  getCurrentIndex,
+  redo,
+  undo,
+} from './internal';
 import {
   PayloadConfigByType,
   PartialActionConfigByType,
@@ -11,14 +16,15 @@ import {
   ReducerOf,
   OriginalActionUnion,
   UOptions,
+  MetaAction,
 } from './types/main';
-import { add1, evolve, Evolver, modifyArrayAt, subtract1 } from './util';
+import { evolve, repeatApply, when } from './util';
 
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
   options?: UOptions
-): UReducerOf<S, PBT> => (uState, action) => {
+): UReducerOf<S, PBT> => (uState, uReducerAction) => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -32,71 +38,38 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
 
+  const undoApplied = undo(reduce, actionConfigs);
+  const redoApplied = redo(reduce, actionConfigs);
+
+  const action = uReducerAction as MetaAction;
+
   if (action.type === 'undo') {
-    if (currentIndex >= 0) {
-      const currentItem = currentBranch.stack[currentIndex];
-      const { type, payload } = currentItem;
-      const config = actionConfigs[type];
-      const newAction = config.makeActionForUndo({ type, payload });
-
-      return pipe(
-        uState,
-        evolve({
-          history: evolve({
-            currentIndex: subtract1,
-            branches: config.updatePayloadOnUndo
-              ? evolve({
-                  [currentBranch.id]: evolve({
-                    stack: modifyArrayAt(
-                      currentIndex,
-                      evolve({
-                        payload: config.updatePayloadOnUndo(state),
-                      } as Evolver<HistoryItemUnion<PBT>>)
-                    ),
-                  }),
-                })
-              : identity,
-          }),
-          state: reduce({
-            ...newAction,
-            undoMundo: { isUndo: true },
-          }),
-          effects: append(newAction),
-        })
-      );
-    } else {
-      return uState;
-    }
+    return pipe(
+      uState,
+      when(() => currentIndex >= 0, undoApplied)
+    );
   } else if (action.type === 'redo') {
-    if (currentIndex < currentBranch.stack.length - 1) {
-      const currentItem = currentBranch.stack[currentIndex + 1];
-      const { type, payload } = currentItem;
-      const config = actionConfigs[type];
-      const newAction = config.makeActionForRedo({ type, payload });
-
-      return pipe(
-        uState,
-        evolve({
-          history: evolve({
-            currentIndex: add1,
-            branches: config.updatePayloadOnRedo
-              ? evolve({
-                  [currentBranch.id]: evolve({
-                    stack: modifyArrayAt(
-                      currentIndex + 1,
-                      evolve({
-                        payload: config.updatePayloadOnRedo(state),
-                      } as Evolver<HistoryItemUnion<PBT>>)
-                    ),
-                  }),
-                })
-              : identity,
-          }),
-          state: reduce(newAction),
-          effects: append(newAction),
-        })
-      );
+    return pipe(
+      uState,
+      when(() => currentIndex < currentBranch.stack.length - 1, redoApplied)
+    );
+  } else if (action.type === 'timeTravel') {
+    const { indexOnBranch, branchId = currentBranch.id } = action.payload;
+    if (branchId === currentBranch.id) {
+      if (indexOnBranch === currentIndex) {
+        return uState;
+      } else if (
+        indexOnBranch > currentBranch.stack.length - 1 ||
+        indexOnBranch < -1
+      ) {
+        throw new Error(`Invalid index ${indexOnBranch}`);
+      } else if (indexOnBranch < currentIndex) {
+        return repeatApply(currentIndex - indexOnBranch, undoApplied)(uState);
+      } else {
+        return repeatApply(indexOnBranch - currentIndex, redoApplied)(uState);
+      }
     } else {
+      // TODO: implement switch branch
       return uState;
     }
   } else {

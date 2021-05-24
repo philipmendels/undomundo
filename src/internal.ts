@@ -1,9 +1,13 @@
 import { Branch, History, HistoryItemUnion } from './types/history';
 import {
   Endomorphism,
+  OriginalActionUnion,
+  PartialActionConfigByType,
   PayloadConfigByType,
   UndoRedoActionUnion,
   UOptions,
+  Updater,
+  UState,
 } from './types/main';
 import { v4 } from 'uuid';
 import {
@@ -15,9 +19,12 @@ import {
   subtract,
   whenIsDefined,
   slice,
+  modifyArrayAt,
+  subtract1,
+  Evolver,
 } from './util';
 import { append } from 'fp-ts/Array';
-import { flow } from 'fp-ts/function';
+import { flow, identity, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
 let branchCounter = 0;
@@ -265,3 +272,79 @@ export const addActionToCurrentBranch = <PBT extends PayloadConfigByType>(
       }),
     })
   );
+
+export const undo = <S, PBT extends PayloadConfigByType>(
+  reduce: Updater<OriginalActionUnion<PBT>, S>,
+  actionConfigs: PartialActionConfigByType<S, PBT>
+) => (uState: UState<S, PBT>) => {
+  const { state, history } = uState;
+  const currentIndex = getCurrentIndex(history);
+  const currentBranch = getCurrentBranch(history);
+  const currentItem = currentBranch.stack[currentIndex];
+  const { type, payload } = currentItem;
+  const config = actionConfigs[type];
+  const newAction = config.makeActionForUndo({ type, payload });
+
+  return pipe(
+    uState,
+    evolve({
+      history: evolve({
+        currentIndex: subtract1,
+        branches: config.updatePayloadOnUndo
+          ? evolve({
+              [currentBranch.id]: evolve({
+                stack: modifyArrayAt(
+                  currentIndex,
+                  evolve({
+                    payload: config.updatePayloadOnUndo(state),
+                  } as Evolver<HistoryItemUnion<PBT>>)
+                ),
+              }),
+            })
+          : identity,
+      }),
+      state: reduce({
+        ...newAction,
+        undoMundo: { isUndo: true },
+      }),
+      effects: append(newAction),
+    })
+  );
+};
+
+export const redo = <S, PBT extends PayloadConfigByType>(
+  reduce: Updater<OriginalActionUnion<PBT>, S>,
+  actionConfigs: PartialActionConfigByType<S, PBT>
+) => (uState: UState<S, PBT>) => {
+  const { state, history } = uState;
+  const currentIndex = getCurrentIndex(history);
+  const currentBranch = getCurrentBranch(history);
+
+  const currentItem = currentBranch.stack[currentIndex + 1];
+  const { type, payload } = currentItem;
+  const config = actionConfigs[type];
+  const newAction = config.makeActionForRedo({ type, payload });
+
+  return pipe(
+    uState,
+    evolve({
+      history: evolve({
+        currentIndex: add1,
+        branches: config.updatePayloadOnRedo
+          ? evolve({
+              [currentBranch.id]: evolve({
+                stack: modifyArrayAt(
+                  currentIndex + 1,
+                  evolve({
+                    payload: config.updatePayloadOnRedo(state),
+                  } as Evolver<HistoryItemUnion<PBT>>)
+                ),
+              }),
+            })
+          : identity,
+      }),
+      state: reduce(newAction),
+      effects: append(newAction),
+    })
+  );
+};
