@@ -7,6 +7,7 @@ import {
   getCurrentBranch,
   getCurrentIndex,
   redo,
+  storeLastGlobalIndex,
   timeTravelCurrentBranch,
   undo,
   updatePath,
@@ -72,6 +73,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       return pipe(
         uState,
         flow(
+          evolve({ history: storeLastGlobalIndex() }),
           when(
             () => caIndex < history.currentIndex,
             timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
@@ -82,6 +84,53 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
             reduce,
             actionConfigs,
             parentIndex + 1 + indexOnBranch
+          )
+        )
+      );
+    }
+  } else if (action.type === 'switchToBranch') {
+    const {
+      branchId,
+      travelTo = 'LAST_COMMON_ACTION_IF_PAST',
+    } = action.payload;
+
+    if (branchId === history.currentBranchId) {
+      throw new Error('Attempt to switch to a branch that is already current.');
+    } else {
+      const targetBranch = history.branches[branchId];
+      const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        history,
+        branchId
+      );
+      return pipe(
+        uState,
+        flow(
+          evolve({ history: storeLastGlobalIndex() }),
+          when(
+            () =>
+              caIndex < history.currentIndex ||
+              travelTo === 'LAST_COMMON_ACTION',
+            timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+          ),
+          evolve({
+            history: updatePath(path.map(b => b.id)),
+          }),
+          // current branch is updated
+          when(
+            () => travelTo === 'LAST_KNOWN_POSITION_ON_BRANCH',
+            timeTravelCurrentBranch(
+              reduce,
+              actionConfigs,
+              targetBranch.lastGlobalIndex!
+            )
+          ),
+          when(
+            () => travelTo === 'HEAD_OF_BRANCH',
+            timeTravelCurrentBranch(
+              reduce,
+              actionConfigs,
+              parentIndex + targetBranch.stack.length
+            )
           )
         )
       );
