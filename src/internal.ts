@@ -436,10 +436,6 @@ export const updatePath = <PBT extends PayloadConfigByType>(path: string[]) => (
                 branchId: newBranchId,
                 globalIndex: parent.globalIndex,
               },
-              lastGlobalIndex:
-                branch.id === prevHistory.currentBranchId
-                  ? prevHistory.currentIndex
-                  : branch.lastGlobalIndex,
             }),
             [newBranchId]: merge({
               stack: stack.slice(0, index + 1).concat(pathBranch.stack),
@@ -450,3 +446,14 @@ export const updatePath = <PBT extends PayloadConfigByType>(path: string[]) => (
       })
     );
   }, prevHistory);
+
+export const storeLastGlobalIndex = <PBT extends PayloadConfigByType>() =>
+  wrap<PBT>(hist =>
+    evolve({
+      branches: evolve({
+        [hist.currentBranchId]: merge({
+          lastGlobalIndex: getCurrentIndex(hist),
+        }),
+      }),
+    })
+  );

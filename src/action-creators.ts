@@ -1,4 +1,10 @@
-import { RedoAction, TimeTravelAction, UndoAction } from './types/main';
+import {
+  BranchSwitchModus,
+  RedoAction,
+  SwitchToBranchAction,
+  TimeTravelAction,
+  UndoAction,
+} from './types/main';
 
 export const undo = (): UndoAction => ({ type: 'undo' });
 export const redo = (): RedoAction => ({ type: 'redo' });
@@ -10,6 +16,17 @@ export const timeTravel = (
   type: 'timeTravel',
   payload: {
     indexOnBranch,
+    branchId,
+  },
+});
+
+export const switchToBranch = (
+  branchId: string,
+  travelTo?: BranchSwitchModus
+): SwitchToBranchAction => ({
+  type: 'switchToBranch',
+  payload: {
+    travelTo,
     branchId,
   },
 });

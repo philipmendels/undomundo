@@ -1,5 +1,5 @@
 import { makeUndoableReducer } from './make-undoable-reducer';
-import { redo, timeTravel, undo } from './action-creators';
+import { redo, switchToBranch, timeTravel, undo } from './action-creators';
 import {
   UState,
   PayloadHandlersByType,
@@ -70,6 +70,10 @@ export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
     },
     timeTravel: (...params: Parameters<typeof timeTravel>) => {
       const action = timeTravel(...params);
+      return withOnChange(action, uReducer(uState, action));
+    },
+    switchToBranch: (...params: Parameters<typeof switchToBranch>) => {
+      const action = switchToBranch(...params);
       return withOnChange(action, uReducer(uState, action));
     },
   };

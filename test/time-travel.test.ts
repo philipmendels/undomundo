@@ -180,3 +180,67 @@ describe('timeTravel', () => {
     expect(newUState.state.count).toBe(33);
   });
 });
+
+describe('switchToBranch', () => {
+  it('works', () => {
+    const { undoables, switchToBranch, timeTravel, undo } = makeUndoableState(
+      props
+    );
+
+    const { addToCount } = undoables;
+
+    newUState = addToCount(2);
+    newUState = addToCount(3);
+    const branch1Id = newUState.history.currentBranchId;
+    undo();
+    newUState = addToCount(5);
+    newUState = addToCount(7);
+    const branch2Id = newUState.history.currentBranchId;
+    undo();
+    newUState = addToCount(11);
+    newUState = addToCount(13);
+    const branch3Id = newUState.history.currentBranchId;
+
+    expect(newUState.history.currentBranchId).toBe(branch3Id);
+    expect(newUState.state.count).toBe(33);
+
+    // defaults to 'LAST_COMMON_ACTION_IF_PAST', which will be the action on index 0
+    newUState = switchToBranch(branch1Id);
+    expect(
+      getBranchActions(newUState.history.branches[branch1Id]).map(
+        action => action.payload
+      )
+    ).toStrictEqual<number[]>([2, 3]);
+
+    expect(newUState.history.currentBranchId).toBe(branch1Id);
+    expect(newUState.history.currentIndex).toBe(0);
+    expect(newUState.state.count).toBe(4);
+
+    newUState = switchToBranch(branch3Id, 'HEAD_OF_BRANCH');
+    expect(newUState.history.currentBranchId).toBe(branch3Id);
+    expect(newUState.history.currentIndex).toBe(3);
+    expect(newUState.state.count).toBe(33);
+
+    // undo to index 2
+    newUState = undo();
+    expect(newUState.history.currentIndex).toBe(2);
+
+    newUState = switchToBranch(branch2Id, 'LAST_COMMON_ACTION');
+    expect(newUState.history.branches[branch3Id].lastGlobalIndex).toBe(2);
+    expect(newUState.history.currentBranchId).toBe(branch2Id);
+    expect(newUState.history.currentIndex).toBe(1);
+    expect(newUState.state.count).toBe(9);
+
+    newUState = switchToBranch(branch3Id, 'LAST_KNOWN_POSITION_ON_BRANCH');
+    expect(newUState.history.currentBranchId).toBe(branch3Id);
+    expect(newUState.history.currentIndex).toBe(2);
+    expect(newUState.state.count).toBe(20);
+
+    // go to index 0
+    timeTravel(0);
+    newUState = switchToBranch(branch2Id, 'LAST_COMMON_ACTION_IF_PAST');
+    expect(newUState.history.currentBranchId).toBe(branch2Id);
+    expect(newUState.history.currentIndex).toBe(0);
+    expect(newUState.state.count).toBe(4);
+  });
+});
