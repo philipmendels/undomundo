@@ -13,6 +13,7 @@ import {
 } from '../src/internal';
 import {
   DefaultPayloadConfig,
+  OriginalActionUnion,
   Reducer,
   RelativePayloadConfig,
   UndoRedoActionUnion,
@@ -123,7 +124,9 @@ describe('wrapReducer', () => {
         type: 'updateCount',
       },
     ]);
-    expect(uState.effects).toStrictEqual<typeof uState.effects>([
+    expect(uState.effects.map(e => e.action)).toStrictEqual<
+      OriginalActionUnion<PBT>[]
+    >([
       {
         type: 'addToCount',
         payload: 3,
@@ -155,22 +158,26 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.effects).toStrictEqual<typeof uState.effects>(
-      prevUState.effects.concat([
-        {
-          type: 'updateCount',
-          payload: 5,
-        },
-        {
-          // action type is converted for undo:
-          type: 'addToCount',
-          payload: 1,
-        },
-        {
-          type: 'addToCount',
-          payload: -3,
-        },
-      ])
+    expect(uState.effects.map(e => e.action)).toStrictEqual<
+      OriginalActionUnion<PBT>[]
+    >(
+      prevUState.effects
+        .map(e => e.action)
+        .concat([
+          {
+            type: 'updateCount',
+            payload: 5,
+          },
+          {
+            // action type is converted for undo:
+            type: 'addToCount',
+            payload: 1,
+          },
+          {
+            type: 'addToCount',
+            payload: -3,
+          },
+        ])
     );
   });
 
@@ -195,21 +202,25 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.effects).toStrictEqual<typeof uState.effects>(
-      prevUState.effects.concat([
-        {
-          type: 'addToCount',
-          payload: 3,
-        },
-        {
-          type: 'subtractFromCount',
-          payload: 1,
-        },
-        {
-          type: 'updateCount',
-          payload: 4,
-        },
-      ])
+    expect(uState.effects.map(e => e.action)).toStrictEqual<
+      OriginalActionUnion<PBT>[]
+    >(
+      prevUState.effects
+        .map(e => e.action)
+        .concat([
+          {
+            type: 'addToCount',
+            payload: 3,
+          },
+          {
+            type: 'subtractFromCount',
+            payload: 1,
+          },
+          {
+            type: 'updateCount',
+            payload: 4,
+          },
+        ])
     );
   });
 
@@ -277,21 +288,25 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(33);
 
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.effects).toStrictEqual(
-      prevUState.effects.concat([
-        {
-          type: 'addToCount',
-          payload: 9,
-        },
-        {
-          type: 'subtractFromCount',
-          payload: 2,
-        },
-        {
-          type: 'updateCount',
-          payload: 33,
-        },
-      ])
+    expect(uState.effects.map(e => e.action)).toStrictEqual<
+      OriginalActionUnion<PBT>[]
+    >(
+      prevUState.effects
+        .map(e => e.action)
+        .concat([
+          {
+            type: 'addToCount',
+            payload: 9,
+          },
+          {
+            type: 'subtractFromCount',
+            payload: 2,
+          },
+          {
+            type: 'updateCount',
+            payload: 33,
+          },
+        ])
     );
   });
 

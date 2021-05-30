@@ -7,6 +7,7 @@ import {
   PayloadConfigByType,
   ActionConfigByType,
   UOptions,
+  Endomorphism,
 } from './types/main';
 import { mapRecord } from './util';
 
@@ -50,7 +51,9 @@ export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
 
   return {
     getCurrentUState: () => uState,
-
+    setUState: (updater: Endomorphism<UState<S, PBT>>) => {
+      uState = updater(uState);
+    },
     undoables: mapRecord(actionCreators)<
       PayloadHandlersByType<UState<S, PBT>, PBT>
     >(creator => (payload, skipHistory) => {

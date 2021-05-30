@@ -111,12 +111,25 @@ export type ActionConfig<
   updateStateOnUndo: Updater<PBT[K]['original'], S>;
 };
 
+export type EffectConfig<
+  S,
+  PBT extends PayloadConfigByType,
+  K extends keyof PBT
+> = PartialActionConfig<S, PBT, K> & {
+  onRedo: (payload: PBT[K]['original']) => void;
+  onUndo: (payload: PBT[K]['original']) => void;
+};
+
 export type PartialActionConfigByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PartialActionConfig<S, PBT, K>;
 };
 
 export type ActionConfigByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: ActionConfig<S, PBT, K>;
+};
+
+export type EffectConfigByType<S, PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: EffectConfig<S, PBT, K>;
 };
 
 export type DefaultPayload<T> = { undo: T; redo: T };
@@ -151,10 +164,15 @@ export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: (p: PBT[K]['original'], options?: UActionOptions) => S;
 };
 
+export type Effect<PBT extends PayloadConfigByType> = {
+  direction: 'undo' | 'redo';
+  action: OriginalActionUnion<PBT>;
+};
+
 export type UState<S, PBT extends PayloadConfigByType> = {
   state: S;
   history: History<PBT>;
-  effects: OriginalActionUnion<PBT>[];
+  effects: Effect<PBT>[];
 };
 
 export type UndoAction = {
@@ -212,4 +230,5 @@ export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
 export type UOptions = {
   useBranchingHistory?: boolean;
   maxHistoryLength?: number;
+  checkStateEquals?: boolean;
 };

@@ -72,6 +72,14 @@ export const slice = (...params: Parameters<typeof Array.prototype.slice>) => <
   a: T[]
 ) => a.slice(...params);
 
+type Unboxed<A extends Array<any>> = A extends Array<infer T> ? T : never;
+
+export const concat = <A extends Array<any>>(param: Unboxed<A>[]) => (a: A) =>
+  a.concat(param) as A;
+
+export const append = <A extends Array<any>>(param: Unboxed<A>) => (a: A) =>
+  a.concat(param) as A;
+
 export const repeatApply = <A>(repetitions: number, fn: Endomorphism<A>) => (
   a: A
 ) => {

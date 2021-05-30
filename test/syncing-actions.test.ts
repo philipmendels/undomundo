@@ -65,12 +65,12 @@ const createClient = () => {
       });
     },
     pull: () => {
-      const actions = uState.effects;
+      const effects = uState.effects;
       uState = {
         ...uState,
         effects: [],
       };
-      return actions;
+      return effects.map(e => e.action);
     },
     updateCount: (count: number) => {
       uState = uReducer(uState, updateCount(count));

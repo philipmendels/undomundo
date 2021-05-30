@@ -23,8 +23,8 @@ import {
   subtract1,
   Evolver,
   repeatApply,
+  append,
 } from './util';
-import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
@@ -308,7 +308,10 @@ export const undo = <S, PBT extends PayloadConfigByType>(
         ...newAction,
         undoMundo: { isUndo: true },
       }),
-      effects: append(newAction),
+      effects: append({
+        direction: 'undo',
+        action: newAction,
+      }),
     })
   );
 };
@@ -345,7 +348,10 @@ export const redo = <S, PBT extends PayloadConfigByType>(
           : identity,
       }),
       state: reduce(newAction),
-      effects: append(newAction),
+      effects: append({
+        direction: 'redo',
+        action: newAction,
+      }),
     })
   );
 };

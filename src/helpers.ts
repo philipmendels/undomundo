@@ -10,6 +10,7 @@ import {
   AssociatedKeysOf,
   FromToPayload,
   TuplePayload,
+  EffectConfig,
 } from './types/main';
 
 export const makeRelativePartialActionConfig = <
@@ -145,5 +146,27 @@ export const makeAbsoluteActionConfig = <PUR>(
 });
 
 export const makeDefaultActionConfig = makeAbsoluteActionConfig(
+  defaultPayloadMapping
+);
+
+export const makeAbsoluteEffectConfig = <PUR>(
+  payloadMapping: PayloadMapping<unknown, PUR>
+) => <
+  PBT extends PayloadConfigByType,
+  K extends AssociatedKeysOf<PBT, PUR>,
+  S
+>({
+  updatePayload,
+  effect,
+}: {
+  updatePayload: Updater<S, PBT[K]['original']>;
+  effect: (payload: PBT[K]['original']) => void;
+}): EffectConfig<S, PBT, K> => ({
+  onRedo: effect,
+  onUndo: effect,
+  ...makeAbsolutePartialActionConfig(payloadMapping)({ updatePayload }),
+});
+
+export const makeDefaultEffectConfig = makeAbsoluteEffectConfig(
   defaultPayloadMapping
 );

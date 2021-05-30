@@ -1,4 +1,3 @@
-import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
 import {
@@ -22,7 +21,7 @@ import {
   UOptions,
   MetaAction,
 } from './types/main';
-import { evolve, when } from './util';
+import { append, evolve, when } from './util';
 
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
@@ -36,6 +35,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   const mergedOptions: Required<UOptions> = {
     useBranchingHistory: false,
     maxHistoryLength: Infinity,
+    checkStateEquals: true,
     ...options,
   };
 
@@ -143,7 +143,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
     const newState = reducer(state, originalAction);
 
     // TODO: what about deep equality?
-    if (newState === state) {
+    if (mergedOptions.checkStateEquals && newState === state) {
       return uState;
     } else {
       const config = actionConfigs[type];
@@ -167,7 +167,12 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                 mergedOptions
               ),
           state: () => newState,
-          effects: skipEffects ? identity : append(originalAction),
+          effects: skipEffects
+            ? identity
+            : append({
+                direction: 'redo',
+                action: originalAction,
+              }),
         })
       );
     }
