@@ -1,16 +1,14 @@
-import { identity } from 'fp-ts/function';
 import { redo, switchToBranch, timeTravel, undo } from './action-creators';
-import { makeUndoableReducer } from './make-undoable-reducer';
+import { makeHistoryReducer } from './make-history-reducer';
 import { History } from './types/history';
 import {
   PayloadConfigByType,
-  UOptions,
   EffectConfigByType,
-  ActionConfigByType,
   UReducerAction,
   Effect,
   UState,
   PayloadHandlersByType,
+  HistoryOptions,
 } from './types/main';
 import { mapRecord } from './util';
 
@@ -25,13 +23,11 @@ export type OnChangeEvent<PBT extends PayloadConfigByType> = {
   oldHist: HistWithEffects<PBT>;
 };
 
-type OmitStrict<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
-
 export type MakeUndoableEffectsProps<S, PBT extends PayloadConfigByType> = {
   getState: () => S;
   getHistory: () => History<PBT>;
   effectConfigs: EffectConfigByType<S, PBT>;
-  options?: OmitStrict<UOptions, 'checkStateEquals'>;
+  options?: HistoryOptions;
   onChange?: (event: OnChangeEvent<PBT>) => void;
 };
 
@@ -50,15 +46,9 @@ export const makeUndoableEffects = <S, PBT extends PayloadConfigByType>({
     state: getState(),
   });
 
-  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT>(
-    mapRecord(effectConfigs)<ActionConfigByType<S, PBT>>(config => ({
-      ...config,
-      // We could run the effects from within the two functions below,
-      // but that would make the internal reducer impure.
-      updateStateOnRedo: () => identity,
-      updateStateOnUndo: () => identity,
-    })),
-    { ...options, checkStateEquals: false }
+  const { uReducer, actionCreators } = makeHistoryReducer<S, PBT>(
+    effectConfigs,
+    options
   );
 
   const withOnChange = (
@@ -71,9 +61,9 @@ export const makeUndoableEffects = <S, PBT extends PayloadConfigByType>({
     if (history !== oldHistory) {
       newUState.effects.forEach(({ direction, action }) => {
         if (direction === 'undo') {
-          effectConfigs[action.type].onUndo(action.payload);
+          effectConfigs[action.type].onUndo?.(action.payload);
         } else {
-          effectConfigs[action.type].onRedo(action.payload);
+          effectConfigs[action.type].onRedo?.(action.payload);
         }
       });
       effects = effects.concat(newUState.effects);

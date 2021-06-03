@@ -160,7 +160,7 @@ export const makeAbsoluteEffectConfig = <PUR>(
   effect,
 }: {
   updatePayload: Updater<S, PBT[K]['original']>;
-  effect: (payload: PBT[K]['original']) => void;
+  effect?: (payload: PBT[K]['original']) => void;
 }): EffectConfig<S, PBT, K> => ({
   onRedo: effect,
   onUndo: effect,

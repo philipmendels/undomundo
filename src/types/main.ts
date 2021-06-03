@@ -86,18 +86,25 @@ export type ActionConvertor<
   K extends keyof PBT
 > = (action: Action<K, PBT[K]['undoRedo']>) => OriginalActionUnion<PBT>;
 
-export type PartialActionConfig<
-  S,
-  PBT extends PayloadConfigByType,
-  K extends keyof PBT
-> = {
-  initPayload: (
-    state: S
-  ) => (original: PBT[K]['original']) => PBT[K]['undoRedo'];
+export type BaseConfig<PBT extends PayloadConfigByType, K extends keyof PBT> = {
   makeActionForUndo: ActionConvertor<PBT, K>;
   // Probably there is no real use-case for changing the action type on redo,
   // so perhaps 'makePayloadForRedo' would be better.
   makeActionForRedo: ActionConvertor<PBT, K>;
+};
+
+export type BaseConfigByType<PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: BaseConfig<PBT, K>;
+};
+
+export type PartialActionConfig<
+  S,
+  PBT extends PayloadConfigByType,
+  K extends keyof PBT
+> = BaseConfig<PBT, K> & {
+  initPayload: (
+    state: S
+  ) => (original: PBT[K]['original']) => PBT[K]['undoRedo'];
   updatePayloadOnUndo?: Updater<S, PBT[K]['undoRedo']>;
   updatePayloadOnRedo?: Updater<S, PBT[K]['undoRedo']>;
 };
@@ -116,8 +123,8 @@ export type EffectConfig<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = PartialActionConfig<S, PBT, K> & {
-  onRedo: (payload: PBT[K]['original']) => void;
-  onUndo: (payload: PBT[K]['original']) => void;
+  onRedo?: (payload: PBT[K]['original']) => void;
+  onUndo?: (payload: PBT[K]['original']) => void;
 };
 
 export type PartialActionConfigByType<S, PBT extends PayloadConfigByType> = {
@@ -227,8 +234,12 @@ export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   UReducerAction<PBT>
 >;
 
-export type UOptions = {
+export type UOptions = HistoryOptions & {
+  checkStateEquals?: boolean;
+};
+
+export type HistoryOptions = {
   useBranchingHistory?: boolean;
   maxHistoryLength?: number;
-  checkStateEquals?: boolean;
+  storeEffects?: boolean;
 };

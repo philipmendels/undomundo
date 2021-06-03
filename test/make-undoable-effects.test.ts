@@ -18,15 +18,19 @@ let state: State = {
 
 let history = createInitialHistory<PBT>();
 
-const { undoables, undo, redo } = makeUndoableEffects<State, PBT>({
+const { undoables, undo, redo, timeTravel } = makeUndoableEffects<State, PBT>({
   getState: () => state,
   getHistory: () => history,
   effectConfigs: {
     updateCount: makeDefaultEffectConfig({
       effect: count => {
+        console.log('effect', count);
         state = { ...state, count };
       },
-      updatePayload: state => _ => state.count,
+      updatePayload: state => p => {
+        console.log('up', p, state.count);
+        return state.count;
+      },
     }),
   },
   onChange: ({ newHist }) => {
@@ -44,5 +48,14 @@ describe('makeUndoableEffects', () => {
     expect(state.count).toBe(2);
     redo();
     expect(state.count).toBe(7);
+    updateCount(11);
+    updateCount(13);
+    updateCount(17);
+    state.count = 999;
+    console.log('-----');
+    timeTravel(-1);
+    expect(state.count).toBe(2);
+    timeTravel(2);
+    expect(state.count).toBe(13);
   });
 });
