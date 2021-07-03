@@ -1,4 +1,5 @@
 import { identity } from 'fp-ts/function';
+import { createInitialHistory, getPathFromCommonAncestor } from './internal';
 import {
   ActionConvertor,
   PayloadConfigByType,
@@ -99,8 +100,11 @@ export const makeAbsolutePartialActionConfig = <PUR>(
   updatePayload: Updater<S, PBT[K]['original']>;
 }): PartialActionConfig<S, PBT, K> => {
   return {
-    initPayload: state => original =>
-      payloadMapping.boxUndoRedo(updatePayload(state)(original), original),
+    initPayload: state => (original, payloadUndo) =>
+      payloadMapping.boxUndoRedo(
+        payloadUndo ?? updatePayload(state)(original),
+        original
+      ),
     makeActionForUndo: ({ type, payload }) => ({
       type,
       payload: payloadMapping.getUndo(payload),
@@ -147,3 +151,5 @@ export const makeAbsoluteActionConfig = <PUR>(
 export const makeDefaultActionConfig = makeAbsoluteActionConfig(
   defaultPayloadMapping
 );
+
+export { createInitialHistory, getPathFromCommonAncestor };

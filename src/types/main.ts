@@ -54,7 +54,7 @@ export type UndoableActionUnion<PBT extends StringMap> = ValueOf<
 >;
 
 export type UAction<T, P> = Action<T, P> & {
-  meta?: UActionOptions;
+  meta?: UActionOptions<P>;
 };
 
 export type UActionUnion<PBT extends StringMap> = ValueOf<
@@ -93,7 +93,10 @@ export type PartialActionConfig<
 > = {
   initPayload: (
     state: S
-  ) => (original: PBT[K]['original']) => PBT[K]['undoRedo'];
+  ) => (
+    original: PBT[K]['original'],
+    payloadUndo?: PBT[K]['original']
+  ) => PBT[K]['undoRedo'];
   makeActionForUndo: ActionConvertor<PBT, K>;
   // Probably there is no real use-case for changing the action type on redo,
   // so perhaps 'makePayloadForRedo' would be better.
@@ -135,20 +138,24 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
 };
 
-type UActionOptions = {
+type UActionOptions<T> = {
   skipHistory?: boolean;
   skipEffects?: boolean;
+  payloadUndo?: T;
 };
 
 export type UActionCreatorsByType<PBT extends StringMap> = {
   [K in keyof PBT]: (
     payload: PBT[K],
-    options?: UActionOptions
+    options?: UActionOptions<PBT[K]>
   ) => UAction<K, PBT[K]>;
 };
 
 export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: (p: PBT[K]['original'], options?: UActionOptions) => S;
+  [K in keyof PBT]: (
+    p: PBT[K]['original'],
+    options?: UActionOptions<PBT[K]['original']>
+  ) => S;
 };
 
 export type UState<S, PBT extends PayloadConfigByType> = {
