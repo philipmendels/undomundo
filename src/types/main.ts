@@ -180,6 +180,10 @@ export type TimeTravelAction = {
   };
 };
 
+export type ClearEffectsAction = {
+  type: 'clearEffects';
+};
+
 export type BranchSwitchModus =
   | 'LAST_COMMON_ACTION_IF_PAST'
   | 'LAST_COMMON_ACTION'
@@ -198,7 +202,8 @@ export type MetaAction =
   | UndoAction
   | RedoAction
   | TimeTravelAction
-  | SwitchToBranchAction;
+  | SwitchToBranchAction
+  | ClearEffectsAction;
 
 export type Reducer<S, A> = (state: S, action: A) => S;
 

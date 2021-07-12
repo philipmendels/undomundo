@@ -138,6 +138,11 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
           )
         );
       }
+    } else if (action.type === 'clearEffects') {
+      return {
+        ...uState,
+        effects: [],
+      };
     } else {
       const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
       // TODO: is it safe to just remove 'meta' (what if the original action also had it)?
