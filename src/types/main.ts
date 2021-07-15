@@ -182,6 +182,9 @@ export type TimeTravelAction = {
 
 export type ClearOutputAction = {
   type: 'clearOutput';
+  payload?: {
+    deleteCount?: number;
+  };
 };
 
 export type BranchSwitchModus =

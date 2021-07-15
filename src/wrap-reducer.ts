@@ -151,9 +151,11 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
         );
       }
     } else if (action.type === 'clearOutput') {
+      const deleteCount = action.payload?.deleteCount;
       return {
         ...uState,
-        output: [],
+        output:
+          deleteCount === undefined ? [] : uState.output.slice(deleteCount),
       };
     } else {
       const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
