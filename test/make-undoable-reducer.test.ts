@@ -44,7 +44,7 @@ const { addToCount, addToCount_alt, updateCount } = actionCreators;
 
 describe('makeUndoableReducer', () => {
   let uState: UState<State, PBT> = {
-    effects: [],
+    output: [],
     history: createInitialHistory(),
     state: {
       count: 3,

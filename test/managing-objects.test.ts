@@ -113,7 +113,7 @@ const { uReducer, actionCreators } = makeUndoableReducer(configs);
 const { setColor, add, remove, set } = actionCreators;
 
 let uState: UState<State, PBT> = {
-  effects: [],
+  output: [],
   history: createInitialHistory(),
   state: {
     cards: {

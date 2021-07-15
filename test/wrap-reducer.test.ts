@@ -45,7 +45,7 @@ type PBT = {
 };
 
 let uState: UState<State, PBT> = {
-  effects: [],
+  output: [],
   history: createInitialHistory(),
   state: {
     count: 3,
@@ -68,19 +68,23 @@ const reducer: Reducer<State, Actions> = (state, action) => {
   return state;
 };
 
-const uReducer = wrapReducer<State, PBT>(reducer, {
-  addToCount: makeRelativePartialActionConfig({
-    // payload conversion:
-    makeActionForUndo: evolve({ payload: negate }),
-  }),
-  subtractFromCount: makeRelativePartialActionConfig({
-    // type conversion:
-    makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
-  }),
-  updateCount: makeDefaultPartialActionConfig({
-    updatePayload: state => _ => state.count,
-  }),
-});
+const uReducer = wrapReducer<State, PBT>(
+  reducer,
+  {
+    addToCount: makeRelativePartialActionConfig({
+      // payload conversion:
+      makeActionForUndo: evolve({ payload: negate }),
+    }),
+    subtractFromCount: makeRelativePartialActionConfig({
+      // type conversion:
+      makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
+    }),
+    updateCount: makeDefaultPartialActionConfig({
+      updatePayload: state => _ => state.count,
+    }),
+  },
+  { storeOutput: true }
+);
 
 describe('wrapReducer', () => {
   it('update works', () => {
@@ -123,7 +127,7 @@ describe('wrapReducer', () => {
         type: 'updateCount',
       },
     ]);
-    expect(uState.effects).toStrictEqual<typeof uState.effects>([
+    expect(uState.output).toStrictEqual<typeof uState.output>([
       {
         type: 'addToCount',
         payload: 3,
@@ -155,8 +159,8 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.effects).toStrictEqual<typeof uState.effects>(
-      prevUState.effects.concat([
+    expect(uState.output).toStrictEqual<typeof uState.output>(
+      prevUState.output.concat([
         {
           type: 'updateCount',
           payload: 5,
@@ -195,8 +199,8 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.effects).toStrictEqual<typeof uState.effects>(
-      prevUState.effects.concat([
+    expect(uState.output).toStrictEqual<typeof uState.output>(
+      prevUState.output.concat([
         {
           type: 'addToCount',
           payload: 3,
@@ -234,7 +238,7 @@ describe('wrapReducer', () => {
       payload: 0,
     });
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.effects).toBe(prevUState.effects);
+    expect(uState.output).toBe(prevUState.output);
   });
 
   // it('ignores absolute update that leads to referentially equal state', () => {
@@ -244,7 +248,7 @@ describe('wrapReducer', () => {
   //     payload: prevUState.state.count,
   //   });
   //   expect(uState.history).toBe(prevUState.history);
-  //   expect(uState.effects).toBe(prevUState.effects);
+  //   expect(uState.output).toBe(prevUState.output);
   // });
 
   it('skip history works', () => {
@@ -277,8 +281,8 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(33);
 
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.effects).toStrictEqual(
-      prevUState.effects.concat([
+    expect(uState.output).toStrictEqual(
+      prevUState.output.concat([
         {
           type: 'addToCount',
           payload: 9,
@@ -295,13 +299,13 @@ describe('wrapReducer', () => {
     );
   });
 
-  it('skip effects works', () => {
+  it('skip output works', () => {
     const prevUState = uState;
     uState = uReducer(uState, {
       type: 'addToCount',
       payload: 2,
       meta: {
-        skipEffects: true,
+        skipOutput: true,
       },
     });
     expect(uState.state.count).toBe(35);
@@ -310,7 +314,7 @@ describe('wrapReducer', () => {
       type: 'subtractFromCount',
       payload: 7,
       meta: {
-        skipEffects: true,
+        skipOutput: true,
       },
     });
     expect(uState.state.count).toBe(28);
@@ -319,12 +323,12 @@ describe('wrapReducer', () => {
       type: 'updateCount',
       payload: 99,
       meta: {
-        skipEffects: true,
+        skipOutput: true,
       },
     });
     expect(uState.state.count).toBe(99);
 
-    expect(uState.effects).toBe(prevUState.effects);
+    expect(uState.output).toBe(prevUState.output);
     expect(getCurrentIndex(uState.history)).toBe(
       getCurrentIndex(prevUState.history) + 3
     );
@@ -353,7 +357,7 @@ describe('wrapReducer', () => {
 
   it('history rewrite works on undo', () => {
     uState = {
-      effects: [],
+      output: [],
       history: createInitialHistory(),
       state: {
         count: 2,
@@ -374,7 +378,7 @@ describe('wrapReducer', () => {
     uState = uReducer(uState, {
       type: 'updateCount',
       payload: 9,
-      meta: { skipEffects: true, skipHistory: true },
+      meta: { skipOutput: true, skipHistory: true },
     });
 
     expect(getCurrentIndex(uState.history)).toBe(1);
@@ -424,7 +428,7 @@ describe('wrapReducer', () => {
     uState = uReducer(uState, {
       type: 'updateCount',
       payload: -4,
-      meta: { skipEffects: true, skipHistory: true },
+      meta: { skipOutput: true, skipHistory: true },
     });
 
     uState = uReducer(uState, { type: 'redo' });

@@ -140,7 +140,7 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
 
 type UActionOptions<T> = {
   skipHistory?: boolean;
-  skipEffects?: boolean;
+  skipOutput?: boolean;
   payloadUndo?: T;
 };
 
@@ -161,7 +161,7 @@ export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
 export type UState<S, PBT extends PayloadConfigByType> = {
   state: S;
   history: History<PBT>;
-  effects: OriginalActionUnion<PBT>[];
+  output: OriginalActionUnion<PBT>[];
 };
 
 export type UndoAction = {
@@ -180,8 +180,8 @@ export type TimeTravelAction = {
   };
 };
 
-export type ClearEffectsAction = {
-  type: 'clearEffects';
+export type ClearOutputAction = {
+  type: 'clearOutput';
 };
 
 export type BranchSwitchModus =
@@ -203,7 +203,7 @@ export type MetaAction =
   | RedoAction
   | TimeTravelAction
   | SwitchToBranchAction
-  | ClearEffectsAction;
+  | ClearOutputAction;
 
 export type Reducer<S, A> = (state: S, action: A) => S;
 
@@ -224,4 +224,7 @@ export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
 export type UOptions = {
   useBranchingHistory?: boolean;
   maxHistoryLength?: number;
+  storeOutput?: boolean;
 };
+
+export type OmitStrict<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;

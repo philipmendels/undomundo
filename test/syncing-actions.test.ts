@@ -43,14 +43,17 @@ const configs: ActionConfigByType<State, PBT> = {
 
 const createClient = () => {
   let uState: UState<State, PBT> = {
-    effects: [],
+    output: [],
     history: createInitialHistory(),
     state: {
       count: 0,
     },
   };
 
-  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(configs);
+  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(
+    configs,
+    { storeOutput: true }
+  );
 
   const { addToCount, updateCount, multiplyCount } = actionCreators;
 
@@ -60,15 +63,15 @@ const createClient = () => {
       actions.forEach(action => {
         uState = uReducer(uState, {
           ...action,
-          meta: { skipHistory: true, skipEffects: true },
+          meta: { skipHistory: true, skipOutput: true },
         });
       });
     },
     pull: () => {
-      const actions = uState.effects;
+      const actions = uState.output;
       uState = {
         ...uState,
-        effects: [],
+        output: [],
       };
       return actions;
     },

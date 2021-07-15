@@ -27,7 +27,7 @@ type PBT = {
 };
 
 let newUState: UState<State, PBT> = {
-  effects: [],
+  output: [],
   history: createInitialHistory(),
   state: {
     count: 2,

@@ -1,6 +1,6 @@
 import {
   BranchSwitchModus,
-  ClearEffectsAction,
+  ClearOutputAction,
   RedoAction,
   SwitchToBranchAction,
   TimeTravelAction,
@@ -10,8 +10,8 @@ import {
 export const undo = (): UndoAction => ({ type: 'undo' });
 export const redo = (): RedoAction => ({ type: 'redo' });
 
-export const clearEffects = (): ClearEffectsAction => ({
-  type: 'clearEffects',
+export const clearOutput = (): ClearOutputAction => ({
+  type: 'clearOutput',
 });
 
 export const timeTravel = (

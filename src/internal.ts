@@ -308,7 +308,7 @@ export const undo = <S, PBT extends PayloadConfigByType>(
         ...newAction,
         undoMundo: { isUndo: true },
       }),
-      effects: append(newAction),
+      output: append(newAction),
     })
   );
 };
@@ -345,7 +345,7 @@ export const redo = <S, PBT extends PayloadConfigByType>(
           : identity,
       }),
       state: reduce(newAction),
-      effects: append(newAction),
+      output: append(newAction),
     })
   );
 };

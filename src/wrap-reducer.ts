@@ -24,6 +24,17 @@ import {
 } from './types/main';
 import { evolve, when } from './util';
 
+export const getOutput = <S, PBT extends PayloadConfigByType>(
+  reducer: ReducerOf<S, PBT>,
+  actionConfigs: PartialActionConfigByType<S, PBT>
+) => {
+  const uReducer = wrapReducer(reducer, actionConfigs, { storeOutput: true });
+  return (...args: Parameters<UReducerOf<S, PBT>>) => {
+    const { output } = uReducer(...args);
+    return output;
+  };
+};
+
 export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
@@ -32,6 +43,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
   const mergedOptions: Required<UOptions> = {
     useBranchingHistory: false,
     maxHistoryLength: Infinity,
+    storeOutput: false,
     ...options,
   };
 
@@ -138,10 +150,10 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
           )
         );
       }
-    } else if (action.type === 'clearEffects') {
+    } else if (action.type === 'clearOutput') {
       return {
         ...uState,
-        effects: [],
+        output: [],
       };
     } else {
       const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
@@ -156,9 +168,10 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
       } else {
         const config = actionConfigs[type];
         const skipHistory = !config || meta?.skipHistory;
-        // TODO: is check for !config necessary for skipping effects?
+        // TODO: is check for !config necessary for skipping output?
         // If used with Redux this reducer may receive unrelated actions.
-        const skipEffects = !config || meta?.skipEffects;
+        const skipOutput =
+          !config || meta?.skipOutput || !mergedOptions.storeOutput;
 
         return pipe(
           uState,
@@ -178,7 +191,7 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                   mergedOptions
                 ),
             state: () => newState,
-            effects: skipEffects ? identity : append(originalAction),
+            output: skipOutput ? identity : append(originalAction),
           })
         );
       }
