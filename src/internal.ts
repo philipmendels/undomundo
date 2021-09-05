@@ -1,4 +1,4 @@
-import { Branch, History, HistoryItemUnion } from './types/history';
+import { Branch, CustomData, History, HistoryItemUnion } from './types/history';
 import {
   Endomorphism,
   OriginalActionUnion,
@@ -28,11 +28,12 @@ import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
-let branchCounter = 0;
-
 export const createInitialHistory = <
-  PBT extends PayloadConfigByType
->(): History<PBT> => {
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  custom = {} as CD
+): History<PBT, CD> => {
   const initialBranchId = v4();
   return {
     currentIndex: -1,
@@ -41,32 +42,48 @@ export const createInitialHistory = <
         id: initialBranchId,
         created: new Date(),
         stack: [],
-        name: `branch ${branchCounter++}`,
+        custom,
       },
     },
     currentBranchId: initialBranchId,
+    stats: {
+      branchCounter: 1,
+      actionCounter: 0,
+    },
   };
 };
 
-const wrap = <PBT extends PayloadConfigByType>(
-  f: (hist: History<PBT>) => Endomorphism<History<PBT>>
-) => (hist: History<PBT>) => f(hist)(hist);
+const wrap = <PBT extends PayloadConfigByType, CD extends CustomData>(
+  f: (hist: History<PBT, CD>) => Endomorphism<History<PBT, CD>>
+) => (hist: History<PBT, CD>) => f(hist)(hist);
 
-export const getCurrentBranch = <PBT extends PayloadConfigByType>(
-  prev: History<PBT>
+export const getCurrentBranch = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  prev: History<PBT, CD>
 ) => prev.branches[prev.currentBranchId];
 
-export const getCurrentIndex = <PBT extends PayloadConfigByType>(
-  prev: History<PBT>
+export const getCurrentIndex = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  prev: History<PBT, CD>
 ) => prev.currentIndex;
 
 // for testing:
-export const getCurrentBranchActions = <PBT extends PayloadConfigByType>(
-  history: History<PBT>
+export const getCurrentBranchActions = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  history: History<PBT, CD>
 ) => getBranchActions(getCurrentBranch(history));
 
-export const getBranchActions = <PBT extends PayloadConfigByType>(
-  branch: Branch<PBT>
+export const getBranchActions = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  branch: Branch<PBT, CD>
 ): UndoRedoActionUnion<PBT>[] =>
   branch.stack.map(({ type, payload }) => ({
     type,
@@ -78,12 +95,12 @@ type CollectedIds = {
   otherIds: string[];
 };
 
-const getParents = <PBT extends PayloadConfigByType>(
-  hist: History<PBT>,
-  branch: Branch<PBT>,
-  branchList: Branch<PBT>[],
+const getParents = <PBT extends PayloadConfigByType, CD extends CustomData>(
+  hist: History<PBT, CD>,
+  branch: Branch<PBT, CD>,
+  branchList: Branch<PBT, CD>[],
   allIds: string[]
-): Branch<PBT>[] =>
+): Branch<PBT, CD>[] =>
   allIds.includes(branch.id)
     ? branchList
     : branch.parentConnection
@@ -95,10 +112,13 @@ const getParents = <PBT extends PayloadConfigByType>(
       )
     : [...branchList, branch];
 
-const clearOrphanBranches = <PBT extends PayloadConfigByType>(
+const clearOrphanBranches = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   modus: 'HEAD' | 'TAIL'
 ) =>
-  wrap<PBT>(hist => {
+  wrap<PBT, CD>(hist => {
     const currentBranch = getCurrentBranch(hist);
 
     const { orphanIds } = Object.entries(hist.branches).reduce<CollectedIds>(
@@ -133,8 +153,11 @@ const clearOrphanBranches = <PBT extends PayloadConfigByType>(
     });
   });
 
-const clearFuture = <PBT extends PayloadConfigByType>() =>
-  wrap<PBT>(hist =>
+const clearFuture = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>() =>
+  wrap<PBT, CD>(hist =>
     flow(
       evolve({
         branches: evolve({
@@ -153,27 +176,35 @@ const clearFuture = <PBT extends PayloadConfigByType>() =>
     )
   );
 
-export const addHistoryItem = <PBT extends PayloadConfigByType>(
+export const addHistoryItem = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   action: HistoryItemUnion<PBT>,
-  options: Required<UOptions>
-): Endomorphism<History<PBT>> =>
+  options: Required<UOptions>,
+  initializeCustomBranchData: (history: History<PBT, CD>) => CD
+): Endomorphism<History<PBT, CD>> =>
   flow(
     ifElse(
       isAtHead,
       addActionToCurrentBranch(action),
       ifElse(
         () => options.useBranchingHistory,
-        addActionToNewBranch(action),
+        addActionToNewBranch(action, initializeCustomBranchData),
         flow(clearFuture(), addActionToCurrentBranch(action))
       )
     ),
+    evolve({ stats: evolve({ actionCounter: add1 }) }),
     shrinkCurrentBranch(options.maxHistoryLength)
   );
 
-const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
+const shrinkCurrentBranch = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   maxHistoryLength: number
 ) =>
-  wrap<PBT>(hist => {
+  wrap<PBT, CD>(hist => {
     const diff = getCurrentBranch(hist).stack.length - maxHistoryLength;
     const correctIndex = subtract(diff);
     return when(
@@ -193,6 +224,11 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
                     globalIndex: correctIndex,
                   })
                 ),
+                parentConnectionInitial: whenIsDefined(
+                  evolve({
+                    globalIndex: correctIndex,
+                  })
+                ),
                 lastGlobalIndex: whenIsDefined(correctIndex),
               })
             )
@@ -204,24 +240,36 @@ const shrinkCurrentBranch = <PBT extends PayloadConfigByType>(
     );
   });
 
-export const isAtHead = <PBT extends PayloadConfigByType>(
-  history: History<PBT>
+export const isAtHead = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  history: History<PBT, CD>
 ) => getCurrentIndex(history) === getCurrentBranch(history).stack.length - 1;
 
-export const addActionToNewBranch = <PBT extends PayloadConfigByType>(
-  action: HistoryItemUnion<PBT>
+export const addActionToNewBranch = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  action: HistoryItemUnion<PBT>,
+  initializeCustomBranchData: (history: History<PBT, CD>) => CD
 ) =>
-  wrap<PBT>(hist => {
+  wrap<PBT, CD>(hist => {
     const currentIndex = getCurrentIndex(hist);
     const newBranchId = v4();
 
-    const newBranch: Branch<PBT> = {
+    const newBranch: Branch<PBT, CD> = {
       created: new Date(),
       id: newBranchId,
-      name: `branch ${branchCounter++}`,
+      // name: `branch ${branchCounter++}`,
       stack: getCurrentBranch(hist)
         .stack.slice(0, currentIndex + 1)
         .concat(action),
+      parentConnectionInitial: {
+        branchId: hist.currentBranchId,
+        globalIndex: hist.currentIndex,
+      },
+      custom: initializeCustomBranchData(hist),
     };
 
     return evolve({
@@ -241,14 +289,18 @@ export const addActionToNewBranch = <PBT extends PayloadConfigByType>(
           }),
         })
       ),
+      stats: evolve({ branchCounter: add1 }),
     });
   });
 
-export const reparentBranches = <PBT extends PayloadConfigByType>(
+export const reparentBranches = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   newBranchId: string,
   branchId: string,
   index: number
-): Endomorphism<Record<string, Branch<PBT>>> =>
+): Endomorphism<Record<string, Branch<PBT, CD>>> =>
   mapR(
     when(
       b =>
@@ -260,10 +312,13 @@ export const reparentBranches = <PBT extends PayloadConfigByType>(
     )
   );
 
-export const addActionToCurrentBranch = <PBT extends PayloadConfigByType>(
+export const addActionToCurrentBranch = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   action: HistoryItemUnion<PBT>
 ) =>
-  wrap<PBT>(hist =>
+  wrap<PBT, CD>(hist =>
     evolve({
       currentIndex: add1,
       branches: evolve({
@@ -277,7 +332,9 @@ export const addActionToCurrentBranch = <PBT extends PayloadConfigByType>(
 export const undo = <S, PBT extends PayloadConfigByType>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-): Endomorphism<UState<S, PBT>> => uState => {
+) => <CD extends CustomData>(
+  uState: UState<S, PBT, CD>
+): UState<S, PBT, CD> => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -316,7 +373,9 @@ export const undo = <S, PBT extends PayloadConfigByType>(
 export const redo = <S, PBT extends PayloadConfigByType>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-): Endomorphism<UState<S, PBT>> => uState => {
+) => <CD extends CustomData>(
+  uState: UState<S, PBT, CD>
+): UState<S, PBT, CD> => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -354,7 +413,9 @@ export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
   indexOnBranch: number
-): Endomorphism<UState<S, PBT>> => uState => {
+) => <CD extends CustomData>(
+  uState: UState<S, PBT, CD>
+): UState<S, PBT, CD> => {
   const { history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -378,11 +439,14 @@ export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
   }
 };
 
-export const getPathFromCommonAncestor = <PBT extends PayloadConfigByType>(
-  history: History<PBT>,
+export const getPathFromCommonAncestor = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  history: History<PBT, CD>,
   branchId: string,
-  path: Branch<PBT>[] = []
-): Branch<PBT>[] => {
+  path: Branch<PBT, CD>[] = []
+): Branch<PBT, CD>[] => {
   const branch = history.branches[branchId];
   if (branch.parentConnection) {
     const newPath = [branch, ...path];
@@ -399,8 +463,11 @@ export const getPathFromCommonAncestor = <PBT extends PayloadConfigByType>(
   throw new Error('Attempt to switch to a branch that is already current.');
 };
 
-export const getBranchSwitchProps = <PBT extends PayloadConfigByType>(
-  history: History<PBT>,
+export const getBranchSwitchProps = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  history: History<PBT, CD>,
   branchId: string
 ) => {
   const path = getPathFromCommonAncestor(history, branchId);
@@ -411,9 +478,12 @@ export const getBranchSwitchProps = <PBT extends PayloadConfigByType>(
   };
 };
 
-export const updatePath = <PBT extends PayloadConfigByType>(path: string[]) => (
-  prevHistory: History<PBT>
-) =>
+export const updatePath = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  path: string[]
+) => (prevHistory: History<PBT, CD>) =>
   path.reduce((newHist, pathBranchId) => {
     const branch = newHist.branches[newHist.currentBranchId];
     const stack = branch.stack;
@@ -447,8 +517,11 @@ export const updatePath = <PBT extends PayloadConfigByType>(path: string[]) => (
     );
   }, prevHistory);
 
-export const storeLastGlobalIndex = <PBT extends PayloadConfigByType>() =>
-  wrap<PBT>(hist =>
+export const storeLastGlobalIndex = <
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>() =>
+  wrap<PBT, CD>(hist =>
     evolve({
       branches: evolve({
         [hist.currentBranchId]: merge({

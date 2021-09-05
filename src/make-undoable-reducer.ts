@@ -9,6 +9,7 @@ import {
   UReducerOf,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
+import { CustomData, History } from './types/history';
 
 export const getOutput = <S, PBT extends PayloadConfigByType>(
   actionConfigs: ActionConfigByType<S, PBT>
@@ -22,9 +23,14 @@ export const getOutput = <S, PBT extends PayloadConfigByType>(
   };
 };
 
-export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
+export const makeUndoableReducer = <
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+>(
   actionConfigs: ActionConfigByType<S, PBT>,
-  options?: UOptions
+  options?: UOptions,
+  initializeCustomBranchData?: (history: History<PBT, CBD>) => CBD
 ) => {
   const { reducer, actionCreators } = makeReducer<
     S,
@@ -38,7 +44,12 @@ export const makeUndoableReducer = <S, PBT extends PayloadConfigByType>(
     )
   );
   return {
-    uReducer: wrapReducer<S, PBT>(reducer, actionConfigs, options),
+    uReducer: wrapReducer<S, PBT, CBD>(
+      reducer,
+      actionConfigs,
+      options,
+      initializeCustomBranchData
+    ),
     actionCreators: mapRecord(actionCreators)<
       UActionCreatorsByType<PayloadOriginalByType<PBT>>
     >(ac => (payload, options) => ({

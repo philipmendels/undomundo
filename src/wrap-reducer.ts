@@ -12,6 +12,7 @@ import {
   undo,
   updatePath,
 } from './internal';
+import { CustomData, History } from './types/history';
 import {
   PayloadConfigByType,
   PartialActionConfigByType,
@@ -35,11 +36,17 @@ export const getOutput = <S, PBT extends PayloadConfigByType>(
   };
 };
 
-export const wrapReducer = <S, PBT extends PayloadConfigByType>(
+export const wrapReducer = <
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+>(
   reducer: ReducerOf<S, PBT>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
-  options?: UOptions
-): UReducerOf<S, PBT> => {
+  options?: UOptions,
+  initializeCustomBranchData: (history: History<PBT, CBD>) => CBD = () =>
+    ({} as CBD)
+): UReducerOf<S, PBT, CBD> => {
   const mergedOptions: Required<UOptions> = {
     useBranchingHistory: false,
     maxHistoryLength: Infinity,
@@ -190,7 +197,8 @@ export const wrapReducer = <S, PBT extends PayloadConfigByType>(
                     id: v4(),
                     created: new Date(),
                   },
-                  mergedOptions
+                  mergedOptions,
+                  initializeCustomBranchData
                 ),
             state: () => newState,
             output: skipOutput ? identity : append(originalAction),

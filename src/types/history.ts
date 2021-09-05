@@ -13,32 +13,35 @@ export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
   }
 >;
 
-// export interface PositionOnBranch {
-//   globalIndex: number;
-//   actionId: string;
-// }
-
 export interface ParentConnection {
   branchId: string;
   globalIndex: number;
 }
 
-export interface Branch<PBT extends PayloadConfigByType> {
+export type CustomData = Record<string, any>;
+
+export interface Branch<
+  PBT extends PayloadConfigByType,
+  CustomBranchData extends CustomData
+> {
   id: string;
-  name: string;
+  parentConnectionInitial?: ParentConnection;
   parentConnection?: ParentConnection;
   lastGlobalIndex?: number;
   created: Date;
   stack: HistoryItemUnion<PBT>[];
+  custom: CustomBranchData;
 }
 
-// export interface BranchConnection<PBT extends PayloadConfigByType> {
-//   position: PositionOnBranch;
-//   branches: Branch<PBT>[];
-// }
-
-export interface History<PBT extends PayloadConfigByType> {
-  branches: Record<string, Branch<PBT>>;
+export interface History<
+  PBT extends PayloadConfigByType,
+  CustomBranchData extends CustomData
+> {
+  branches: Record<string, Branch<PBT, CustomBranchData>>;
   currentBranchId: string;
   currentIndex: number;
+  stats: {
+    branchCounter: number;
+    actionCounter: number;
+  };
 }

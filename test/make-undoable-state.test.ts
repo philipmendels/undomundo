@@ -12,7 +12,7 @@ type PBT = {
   updateCount: DefaultPayloadConfig<number>;
 };
 
-type CallbackParams = OnChangeEvent<State, PBT>[];
+type CallbackParams = OnChangeEvent<State, PBT, {}>[];
 
 let newUState: UState<State, PBT> = {
   output: [],

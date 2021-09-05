@@ -1,4 +1,4 @@
-import { History } from './history';
+import { CustomData, History } from './history';
 
 export type Endomorphism<T> = (t: T) => T;
 
@@ -158,9 +158,13 @@ export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
   ) => S;
 };
 
-export type UState<S, PBT extends PayloadConfigByType> = {
+export type UState<
+  S,
+  PBT extends PayloadConfigByType,
+  CustomBranchData extends CustomData = {}
+> = {
   state: S;
-  history: History<PBT>;
+  history: History<PBT, CustomBranchData>;
   output: OriginalActionUnion<PBT>[];
 };
 
@@ -219,10 +223,11 @@ export type UReducerAction<PBT extends PayloadConfigByType> =
   | MetaAction
   | OriginalUActionUnion<PBT>;
 
-export type UReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
-  UState<S, PBT>,
-  UReducerAction<PBT>
->;
+export type UReducerOf<
+  S,
+  PBT extends PayloadConfigByType,
+  CustomBranchData extends CustomData = {}
+> = Reducer<UState<S, PBT, CustomBranchData>, UReducerAction<PBT>>;
 
 export type UOptions = {
   useBranchingHistory?: boolean;

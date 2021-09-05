@@ -9,36 +9,52 @@ import {
   UOptions,
 } from './types/main';
 import { mapRecord } from './util';
+import { CustomData, History } from './types/history';
 
-export type OnChangeEvent<S, PBT extends PayloadConfigByType> = {
+export type OnChangeEvent<
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData
+> = {
   action: UReducerAction<PBT>;
-  newUState: UState<S, PBT>;
-  oldUState: UState<S, PBT>;
+  newUState: UState<S, PBT, CBD>;
+  oldUState: UState<S, PBT, CBD>;
 };
 
-export type MakeUndoableStateProps<S, PBT extends PayloadConfigByType> = {
-  initialUState: UState<S, PBT>;
+export type MakeUndoableStateProps<
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+> = {
+  initialUState: UState<S, PBT, CBD>;
   actionConfigs: ActionConfigByType<S, PBT>;
   options?: UOptions;
-  onChange?: (event: OnChangeEvent<S, PBT>) => void;
+  onChange?: (event: OnChangeEvent<S, PBT, CBD>) => void;
+  initializeCustomBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
-export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
+export const makeUndoableState = <
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+>({
   initialUState,
   actionConfigs,
   options,
   onChange,
-}: MakeUndoableStateProps<S, PBT>) => {
+  initializeCustomBranchData,
+}: MakeUndoableStateProps<S, PBT, CBD>) => {
   let uState = initialUState;
 
-  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT>(
+  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT, CBD>(
     actionConfigs,
-    options
+    options,
+    initializeCustomBranchData
   );
 
   const withOnChange = (
     action: UReducerAction<PBT>,
-    newUState: UState<S, PBT>
+    newUState: UState<S, PBT, CBD>
   ) => {
     const oldUState = uState;
     if (newUState !== oldUState) {
@@ -52,7 +68,7 @@ export const makeUndoableState = <S, PBT extends PayloadConfigByType>({
     getCurrentUState: () => uState,
 
     undoables: mapRecord(actionCreators)<
-      PayloadHandlersByType<UState<S, PBT>, PBT>
+      PayloadHandlersByType<UState<S, PBT, CBD>, PBT>
     >(creator => (payload, skipHistory) => {
       const action = creator(payload, skipHistory);
       return withOnChange(
