@@ -29,7 +29,7 @@ export const getOutput = <S, PBT extends PayloadConfigByType>(
   reducer: ReducerOf<S, PBT>,
   actionConfigs: PartialActionConfigByType<S, PBT>
 ) => {
-  const uReducer = wrapReducer(reducer, actionConfigs, { storeOutput: true });
+  const uReducer = wrapReducer(reducer, actionConfigs);
   return (...args: Parameters<UReducerOf<S, PBT>>) => {
     const { output } = uReducer(...args);
     return output;
@@ -50,7 +50,7 @@ export const wrapReducer = <
   const mergedOptions: Required<UOptions> = {
     useBranchingHistory: false,
     maxHistoryLength: Infinity,
-    storeOutput: false,
+    keepOutput: false,
     ...options,
   };
 
@@ -62,16 +62,21 @@ export const wrapReducer = <
     const currentIndex = getCurrentIndex(history);
     const currentBranch = getCurrentBranch(history);
 
+    const uStateWithNewOutput: typeof uState =
+      mergedOptions.keepOutput || uState.output.length === 0
+        ? uState
+        : { state, history, output: [] };
+
     const action = uReducerAction as MetaAction;
 
     if (action.type === 'undo') {
       return pipe(
-        uState,
+        uStateWithNewOutput,
         when(() => currentIndex >= 0, undo(reduce, actionConfigs))
       );
     } else if (action.type === 'redo') {
       return pipe(
-        uState,
+        uStateWithNewOutput,
         when(
           () => currentIndex < currentBranch.stack.length - 1,
           redo(reduce, actionConfigs)
@@ -84,14 +89,14 @@ export const wrapReducer = <
           reduce,
           actionConfigs,
           indexOnBranch
-        )(uState);
+        )(uStateWithNewOutput);
       } else {
         const { caIndex, path, parentIndex } = getBranchSwitchProps(
           history,
           branchId
         );
         return pipe(
-          uState,
+          uStateWithNewOutput,
           flow(
             evolve({ history: storeLastGlobalIndex() }),
             when(
@@ -125,7 +130,7 @@ export const wrapReducer = <
           branchId
         );
         return pipe(
-          uState,
+          uStateWithNewOutput,
           flow(
             evolve({ history: storeLastGlobalIndex() }),
             when(
@@ -160,9 +165,11 @@ export const wrapReducer = <
     } else if (action.type === 'clearOutput') {
       const deleteCount = action.payload?.deleteCount;
       return {
-        ...uState,
+        ...uStateWithNewOutput,
         output:
-          deleteCount === undefined ? [] : uState.output.slice(deleteCount),
+          deleteCount === undefined
+            ? []
+            : uStateWithNewOutput.output.slice(deleteCount),
       };
     } else {
       const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
@@ -173,17 +180,17 @@ export const wrapReducer = <
 
       // TODO: what about deep equality?
       if (newState === state) {
-        return uState;
+        // or return uState ???
+        return uStateWithNewOutput;
       } else {
         const config = actionConfigs[type];
         const skipHistory = !config || meta?.skipHistory;
         // TODO: is check for !config necessary for skipping output?
         // If used with Redux this reducer may receive unrelated actions.
-        const skipOutput =
-          !config || meta?.skipOutput || !mergedOptions.storeOutput;
+        const skipOutput = !config || meta?.skipOutput;
 
         return pipe(
-          uState,
+          uStateWithNewOutput,
           evolve({
             history: skipHistory
               ? identity

@@ -34,6 +34,7 @@ const props: MakeUndoableStateProps<State, PBT> = {
   },
   options: {
     useBranchingHistory: true,
+    keepOutput: true,
   },
 };
 

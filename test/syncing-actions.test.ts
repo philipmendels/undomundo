@@ -50,10 +50,7 @@ const createClient = () => {
     },
   };
 
-  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(
-    configs,
-    { storeOutput: true }
-  );
+  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(configs);
 
   const { addToCount, updateCount, multiplyCount } = actionCreators;
 

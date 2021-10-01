@@ -83,7 +83,7 @@ const uReducer = wrapReducer<State, PBT>(
       updatePayload: state => _ => state.count,
     }),
   },
-  { storeOutput: true }
+  { keepOutput: true }
 );
 
 describe('wrapReducer', () => {

@@ -14,9 +14,7 @@ import { CustomData, History } from './types/history';
 export const getOutput = <S, PBT extends PayloadConfigByType>(
   actionConfigs: ActionConfigByType<S, PBT>
 ) => {
-  const { uReducer } = makeUndoableReducer(actionConfigs, {
-    storeOutput: true,
-  });
+  const { uReducer } = makeUndoableReducer(actionConfigs);
   return (...args: Parameters<UReducerOf<S, PBT>>) => {
     const { output } = uReducer(...args);
     return output;

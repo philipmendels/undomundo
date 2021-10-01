@@ -232,7 +232,7 @@ export type UReducerOf<
 export type UOptions = {
   useBranchingHistory?: boolean;
   maxHistoryLength?: number;
-  storeOutput?: boolean;
+  keepOutput?: boolean;
 };
 
 export type OmitStrict<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
