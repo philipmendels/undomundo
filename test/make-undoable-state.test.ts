@@ -1,5 +1,4 @@
-import { makeDefaultActionConfig } from '../src/helpers';
-import { createInitialHistory } from '../src/internal';
+import { makeDefaultActionConfig, initHistory } from '../src/helpers';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
 import { DefaultPayloadConfig, UState } from '../src/types/main';
 import { merge } from '../src/util';
@@ -16,7 +15,7 @@ type CallbackParams = OnChangeEvent<State, PBT, {}>[];
 
 let newUState: UState<State, PBT> = {
   output: [],
-  history: createInitialHistory(),
+  history: initHistory(),
   state: {
     count: 2,
   },
@@ -33,8 +32,9 @@ const {
   initialUState: newUState,
   actionConfigs: {
     updateCount: makeDefaultActionConfig({
-      updatePayload: state => _ => state.count,
       updateState: count => merge({ count }),
+      getValueFromState: state => state.count,
+      updateHistory: count => _ => count,
     }),
   },
   onChange,

@@ -1,11 +1,11 @@
 import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
+import { canRedo, canUndo } from './helpers';
 import {
   addHistoryItem,
   getBranchSwitchProps,
   getCurrentBranch,
-  getCurrentIndex,
   redo,
   storeLastGlobalIndex,
   timeTravelCurrentBranch,
@@ -22,31 +22,32 @@ import {
   OriginalActionUnion,
   UOptions,
   MetaAction,
+  UActionCreatorsByType,
+  OriginalPayloadByType,
 } from './types/main';
-import { evolve, when } from './util';
+import { evolve, mapRecordWithKey, when } from './util';
 
-export const getOutput = <S, PBT extends PayloadConfigByType>(
-  reducer: ReducerOf<S, PBT>,
-  actionConfigs: PartialActionConfigByType<S, PBT>
-) => {
-  const uReducer = wrapReducer(reducer, actionConfigs);
-  return (...args: Parameters<UReducerOf<S, PBT>>) => {
-    const { output } = uReducer(...args);
-    return output;
-  };
+export type WrapReducerProps<
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+> = {
+  reducer: ReducerOf<S, PBT>;
+  actionConfigs: PartialActionConfigByType<S, PBT>;
+  options?: UOptions;
+  initBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
 export const wrapReducer = <
   S,
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
->(
-  reducer: ReducerOf<S, PBT>,
-  actionConfigs: PartialActionConfigByType<S, PBT>,
-  options?: UOptions,
-  initializeCustomBranchData: (history: History<PBT, CBD>) => CBD = () =>
-    ({} as CBD)
-): UReducerOf<S, PBT, CBD> => {
+>({
+  reducer,
+  actionConfigs,
+  options,
+  initBranchData = () => ({} as CBD),
+}: WrapReducerProps<S, PBT, CBD>) => {
   const mergedOptions: Required<UOptions> = {
     useBranchingHistory: false,
     maxHistoryLength: Infinity,
@@ -57,9 +58,8 @@ export const wrapReducer = <
   const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
 
-  return (uState, uReducerAction) => {
+  const uReducer: UReducerOf<S, PBT, CBD> = (uState, uReducerAction) => {
     const { state, history } = uState;
-    const currentIndex = getCurrentIndex(history);
     const currentBranch = getCurrentBranch(history);
 
     const uStateWithNewOutput: typeof uState =
@@ -72,15 +72,12 @@ export const wrapReducer = <
     if (action.type === 'undo') {
       return pipe(
         uStateWithNewOutput,
-        when(() => currentIndex >= 0, undo(reduce, actionConfigs))
+        when(() => canUndo(history), undo(reduce, actionConfigs))
       );
     } else if (action.type === 'redo') {
       return pipe(
         uStateWithNewOutput,
-        when(
-          () => currentIndex < currentBranch.stack.length - 1,
-          redo(reduce, actionConfigs)
-        )
+        when(() => canRedo(history), redo(reduce, actionConfigs))
       );
     } else if (action.type === 'timeTravel') {
       const { indexOnBranch, branchId = currentBranch.id } = action.payload;
@@ -197,15 +194,15 @@ export const wrapReducer = <
               : addHistoryItem(
                   {
                     type,
-                    payload: config.initPayload(state)(
+                    payload: config.initPayloadInHistory(state)(
                       payload,
-                      meta?.payloadUndo
+                      meta?.undoValue
                     ),
                     id: v4(),
                     created: new Date(),
                   },
                   mergedOptions,
-                  initializeCustomBranchData
+                  initBranchData
                 ),
             state: () => newState,
             output: skipOutput ? identity : append(originalAction),
@@ -213,5 +210,18 @@ export const wrapReducer = <
         );
       }
     }
+  };
+
+  const actionCreators = mapRecordWithKey(actionConfigs)<
+    UActionCreatorsByType<OriginalPayloadByType<PBT>>
+  >(type => (payload, options) => ({
+    type,
+    payload,
+    ...(options && { meta: options }),
+  }));
+
+  return {
+    uReducer,
+    actionCreators,
   };
 };
