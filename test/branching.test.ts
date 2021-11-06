@@ -1,7 +1,6 @@
 import { negate } from 'fp-ts-std/Number';
-import { makeRelativeActionConfig } from '../src/helpers';
+import { initHistory, makeRelativeActionConfig } from '../src/helpers';
 import {
-  createInitialHistory,
   getBranchActions,
   getCurrentBranch,
   getCurrentBranchActions,
@@ -28,7 +27,7 @@ type PBT = {
 
 let newUState: UState<State, PBT> = {
   output: [],
-  history: createInitialHistory(),
+  history: initHistory(),
   state: {
     count: 2,
   },

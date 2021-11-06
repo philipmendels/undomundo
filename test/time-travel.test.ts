@@ -1,6 +1,6 @@
 import { negate } from 'fp-ts-std/Number';
-import { makeRelativeActionConfig } from '../src/helpers';
-import { createInitialHistory, getBranchActions } from '../src/internal';
+import { makeRelativeActionConfig, initHistory } from '../src/helpers';
+import { getBranchActions } from '../src/internal';
 import {
   makeUndoableState,
   MakeUndoableStateProps,
@@ -18,7 +18,7 @@ type PBT = {
 
 let newUState: UState<State, PBT> = {
   output: [],
-  history: createInitialHistory(),
+  history: initHistory(),
   state: {
     count: 2,
   },

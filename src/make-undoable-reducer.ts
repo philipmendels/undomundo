@@ -3,56 +3,43 @@ import {
   PayloadConfigByType,
   ActionConfigByType,
   UpdatersByType,
-  PayloadOriginalByType,
-  UActionCreatorsByType,
+  OriginalPayloadByType,
   UOptions,
-  UReducerOf,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
 import { CustomData, History } from './types/history';
 
-export const getOutput = <S, PBT extends PayloadConfigByType>(
-  actionConfigs: ActionConfigByType<S, PBT>
-) => {
-  const { uReducer } = makeUndoableReducer(actionConfigs);
-  return (...args: Parameters<UReducerOf<S, PBT>>) => {
-    const { output } = uReducer(...args);
-    return output;
-  };
+export type MakeUndoableReducerReducerProps<
+  S,
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+> = {
+  actionConfigs: ActionConfigByType<S, PBT>;
+  options?: UOptions;
+  initBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
 export const makeUndoableReducer = <
   S,
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
->(
-  actionConfigs: ActionConfigByType<S, PBT>,
-  options?: UOptions,
-  initializeCustomBranchData?: (history: History<PBT, CBD>) => CBD
-) => {
-  const { reducer, actionCreators } = makeReducer<
-    S,
-    PayloadOriginalByType<PBT>
-  >(
-    mapRecord(actionConfigs)<UpdatersByType<S, PayloadOriginalByType<PBT>>>(
+>({
+  actionConfigs,
+  options,
+  initBranchData,
+}: MakeUndoableReducerReducerProps<S, PBT, CBD>) => {
+  const { reducer } = makeReducer<S, OriginalPayloadByType<PBT>>(
+    mapRecord(actionConfigs)<UpdatersByType<S, OriginalPayloadByType<PBT>>>(
       config => ({
-        undo: config.updateStateOnUndo,
-        redo: config.updateStateOnRedo,
+        undo: config.updateStateOnUndo ?? config.updateState,
+        redo: config.updateState,
       })
     )
   );
-  return {
-    uReducer: wrapReducer<S, PBT, CBD>(
-      reducer,
-      actionConfigs,
-      options,
-      initializeCustomBranchData
-    ),
-    actionCreators: mapRecord(actionCreators)<
-      UActionCreatorsByType<PayloadOriginalByType<PBT>>
-    >(ac => (payload, options) => ({
-      ...ac(payload),
-      ...(options && { meta: options }),
-    })),
-  };
+  return wrapReducer<S, PBT, CBD>({
+    reducer,
+    actionConfigs,
+    options,
+    initBranchData,
+  });
 };

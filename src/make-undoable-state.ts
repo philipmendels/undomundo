@@ -10,6 +10,7 @@ import {
 } from './types/main';
 import { mapRecord } from './util';
 import { CustomData, History } from './types/history';
+import { canRedo, canUndo } from './helpers';
 
 export type OnChangeEvent<
   S,
@@ -30,7 +31,7 @@ export type MakeUndoableStateProps<
   actionConfigs: ActionConfigByType<S, PBT>;
   options?: UOptions;
   onChange?: (event: OnChangeEvent<S, PBT, CBD>) => void;
-  initializeCustomBranchData?: (history: History<PBT, CBD>) => CBD;
+  initBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
 export const makeUndoableState = <
@@ -42,15 +43,15 @@ export const makeUndoableState = <
   actionConfigs,
   options,
   onChange,
-  initializeCustomBranchData,
+  initBranchData,
 }: MakeUndoableStateProps<S, PBT, CBD>) => {
   let uState = initialUState;
 
-  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT, CBD>(
+  const { uReducer, actionCreators } = makeUndoableReducer<S, PBT, CBD>({
     actionConfigs,
     options,
-    initializeCustomBranchData
-  );
+    initBranchData,
+  });
 
   const withOnChange = (
     action: UReducerAction<PBT>,
@@ -76,6 +77,8 @@ export const makeUndoableState = <
         uReducer(uState, action)
       );
     }),
+    canUndo: () => canUndo(uState.history),
+    canRedo: () => canRedo(uState.history),
     undo: () => {
       const action = undo();
       return withOnChange(action, uReducer(uState, action));

@@ -9,7 +9,7 @@ export type HistoryItem<T, PUR> = {
 
 export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
   {
-    [K in keyof PBT]: HistoryItem<K, PBT[K]['undoRedo']>;
+    [K in keyof PBT]: HistoryItem<K, PBT[K]['history']>;
   }
 >;
 

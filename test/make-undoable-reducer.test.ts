@@ -1,10 +1,11 @@
 import { negate } from 'fp-ts-std/Number';
+import { identity } from 'fp-ts/function';
 import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
+  initHistory,
 } from '../src/helpers';
-import { createInitialHistory } from '../src/internal';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
 import {
   DefaultPayloadConfig,
@@ -24,20 +25,26 @@ type PBT = {
 };
 
 const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
-  addToCount: makeRelativeActionConfig({
-    // payload conversion for undo:
-    makeActionForUndo: evolve({ payload: negate }),
-    updateState: amount => evolve({ count: add(amount) }),
-  }),
-  addToCount_alt: makeRelativeActionConfig({
-    // separate updater for undo
-    updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
-    updateState: amount => evolve({ count: add(amount) }),
-  }),
-  updateCount: makeDefaultActionConfig({
-    updatePayload: state => _ => state.count,
-    updateState: count => merge({ count }),
-  }),
+  actionConfigs: {
+    addToCount: makeRelativeActionConfig({
+      // payload conversion for undo:
+      updateState: amount => evolve({ count: add(amount) }),
+      makeActionForUndo: evolve({ payload: negate }),
+    }),
+    addToCount_alt: {
+      ...makeRelativeActionConfig({
+        updateState: amount => evolve({ count: add(amount) }),
+        makeActionForUndo: identity,
+      }),
+      // separate updater for undo
+      updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
+    },
+    updateCount: makeDefaultActionConfig({
+      updateState: count => merge({ count }),
+      getValueFromState: state => state.count,
+      updateHistory: count => _ => count,
+    }),
+  },
 });
 
 const { addToCount, addToCount_alt, updateCount } = actionCreators;
@@ -45,7 +52,7 @@ const { addToCount, addToCount_alt, updateCount } = actionCreators;
 describe('makeUndoableReducer', () => {
   let uState: UState<State, PBT> = {
     output: [],
-    history: createInitialHistory(),
+    history: initHistory(),
     state: {
       count: 3,
     },

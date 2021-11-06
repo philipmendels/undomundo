@@ -4,9 +4,9 @@ import { wrapReducer } from '../src';
 import {
   makeDefaultPartialActionConfig,
   makeRelativePartialActionConfig,
+  initHistory,
 } from '../src/helpers';
 import {
-  createInitialHistory,
   getCurrentBranch,
   getCurrentBranchActions,
   getCurrentIndex,
@@ -15,7 +15,7 @@ import {
   DefaultPayloadConfig,
   Reducer,
   RelativePayloadConfig,
-  UndoRedoActionUnion,
+  HistoryActionUnion,
   UState,
 } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
@@ -46,7 +46,7 @@ type PBT = {
 
 let uState: UState<State, PBT> = {
   output: [],
-  history: createInitialHistory(),
+  history: initHistory(),
   state: {
     count: 3,
   },
@@ -68,9 +68,9 @@ const reducer: Reducer<State, Actions> = (state, action) => {
   return state;
 };
 
-const uReducer = wrapReducer<State, PBT>(
+const { uReducer } = wrapReducer<State, PBT>({
   reducer,
-  {
+  actionConfigs: {
     addToCount: makeRelativePartialActionConfig({
       // payload conversion:
       makeActionForUndo: evolve({ payload: negate }),
@@ -80,11 +80,12 @@ const uReducer = wrapReducer<State, PBT>(
       makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
     }),
     updateCount: makeDefaultPartialActionConfig({
-      updatePayload: state => _ => state.count,
+      getValueFromState: state => state.count,
+      updateHistory: value => _ => value,
     }),
   },
-  { keepOutput: true }
-);
+  options: { keepOutput: true },
+});
 
 describe('wrapReducer', () => {
   it('update works', () => {
@@ -109,7 +110,7 @@ describe('wrapReducer', () => {
 
     expect(getCurrentIndex(uState.history)).toBe(2);
     expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      UndoRedoActionUnion<PBT>[]
+      HistoryActionUnion<PBT>[]
     >([
       {
         payload: 3,
@@ -333,7 +334,7 @@ describe('wrapReducer', () => {
       getCurrentIndex(prevUState.history) + 3
     );
     expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      UndoRedoActionUnion<PBT>[]
+      HistoryActionUnion<PBT>[]
     >(
       getCurrentBranchActions(prevUState.history).concat([
         {
@@ -358,7 +359,7 @@ describe('wrapReducer', () => {
   it('history rewrite works on undo', () => {
     uState = {
       output: [],
-      history: createInitialHistory(),
+      history: initHistory(),
       state: {
         count: 2,
       },
@@ -383,7 +384,7 @@ describe('wrapReducer', () => {
 
     expect(getCurrentIndex(uState.history)).toBe(1);
     expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      UndoRedoActionUnion<PBT>[]
+      HistoryActionUnion<PBT>[]
     >([
       {
         payload: {
@@ -407,7 +408,7 @@ describe('wrapReducer', () => {
     expect(getCurrentIndex(uState.history)).toBe(-1);
     // redo in absolute payload is rewritten on undo:
     expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      UndoRedoActionUnion<PBT>[]
+      HistoryActionUnion<PBT>[]
     >([
       {
         payload: {
@@ -439,7 +440,7 @@ describe('wrapReducer', () => {
     expect(getCurrentIndex(uState.history)).toBe(1);
     // undo in absolute payload is rewritten on undo:
     expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      UndoRedoActionUnion<PBT>[]
+      HistoryActionUnion<PBT>[]
     >([
       {
         payload: {

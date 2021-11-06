@@ -17,26 +17,26 @@ export type PayloadConfigByType = Record<string, PayloadConfig>;
 
 export type AssociatedKeysOf<PBT extends PayloadConfigByType, PUR> = ValueOf<
   {
-    [K in keyof PBT]: PBT[K]['undoRedo'] extends PUR ? K : never;
+    [K in keyof PBT]: PBT[K]['history'] extends PUR ? K : never;
   }
 >;
 
-export type PayloadConfig<PO = any, PUR = any> = {
+export type PayloadConfig<PO = any, PH = any> = {
   original: PO;
-  undoRedo: PUR;
+  history: PH;
 };
 
-export type RelativePayloadConfig<PO> = {
-  original: PO;
-  undoRedo: PO;
+export type RelativePayloadConfig<P> = {
+  original: P;
+  history: P;
 };
 
-export type PayloadOriginalByType<PBT extends PayloadConfigByType> = {
+export type OriginalPayloadByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PBT[K]['original'];
 };
 
-export type PayloadUndoRedoByType<PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: PBT[K]['undoRedo'];
+export type HistoryPayloadByType<PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: PBT[K]['history'];
 };
 
 export type ActionUnion<PBT extends StringMap> = ValueOf<
@@ -64,45 +64,43 @@ export type UActionUnion<PBT extends StringMap> = ValueOf<
 >;
 
 export type OriginalActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
-  PayloadOriginalByType<PBT>
+  OriginalPayloadByType<PBT>
 >;
 
-export type UndoRedoActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
-  PayloadUndoRedoByType<PBT>
+export type HistoryActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
+  HistoryPayloadByType<PBT>
 >;
 
 export type OriginalUActionUnion<
   PBT extends PayloadConfigByType
-> = UActionUnion<PayloadOriginalByType<PBT>>;
+> = UActionUnion<OriginalPayloadByType<PBT>>;
 
-export type PayloadMapping<PO, PUR> = {
-  boxUndoRedo: (undo: PO, redo: PO) => PUR;
-  getUndo: (payload: PUR) => PO;
-  getRedo: (payload: PUR) => PO;
+export type PayloadMapping<PO, PH> = {
+  composeUndoRedo: (undo: PO, redo: PO) => PH;
+  getUndo: (payload: PH) => PO;
+  getRedo: (payload: PH) => PO;
 };
 
 export type ActionConvertor<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = (action: Action<K, PBT[K]['undoRedo']>) => OriginalActionUnion<PBT>;
+> = (action: Action<K, PBT[K]['history']>) => OriginalActionUnion<PBT>;
 
 export type PartialActionConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = {
-  initPayload: (
+  initPayloadInHistory: (
     state: S
   ) => (
-    original: PBT[K]['original'],
-    payloadUndo?: PBT[K]['original']
-  ) => PBT[K]['undoRedo'];
+    redoValue: PBT[K]['original'],
+    undoValue?: PBT[K]['original']
+  ) => PBT[K]['history'];
   makeActionForUndo: ActionConvertor<PBT, K>;
-  // Probably there is no real use-case for changing the action type on redo,
-  // so perhaps 'makePayloadForRedo' would be better.
-  makeActionForRedo: ActionConvertor<PBT, K>;
-  updatePayloadOnUndo?: Updater<S, PBT[K]['undoRedo']>;
-  updatePayloadOnRedo?: Updater<S, PBT[K]['undoRedo']>;
+  getPayloadForRedo: (pHistory: PBT[K]['history']) => PBT[K]['original'];
+  updateHistoryOnUndo?: Updater<S, PBT[K]['history']>;
+  updateHistoryOnRedo?: Updater<S, PBT[K]['history']>;
 };
 
 export type ActionConfig<
@@ -110,8 +108,8 @@ export type ActionConfig<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = PartialActionConfig<S, PBT, K> & {
-  updateStateOnRedo: Updater<PBT[K]['original'], S>;
-  updateStateOnUndo: Updater<PBT[K]['original'], S>;
+  updateState: Updater<PBT[K]['original'], S>;
+  updateStateOnUndo?: Updater<PBT[K]['original'], S>;
 };
 
 export type PartialActionConfigByType<S, PBT extends PayloadConfigByType> = {
@@ -141,7 +139,7 @@ export type ActionCreatorsByType<PBT extends StringMap> = {
 type UActionOptions<T> = {
   skipHistory?: boolean;
   skipOutput?: boolean;
-  payloadUndo?: T;
+  undoValue?: T;
 };
 
 export type UActionCreatorsByType<PBT extends StringMap> = {
@@ -216,7 +214,7 @@ export type Reducer<S, A> = (state: S, action: A) => S;
 
 export type ReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   S,
-  UndoableActionUnion<PayloadOriginalByType<PBT>>
+  UndoableActionUnion<OriginalPayloadByType<PBT>>
 >;
 
 export type UReducerAction<PBT extends PayloadConfigByType> =

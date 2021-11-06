@@ -7,8 +7,8 @@ import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
+  initHistory,
 } from '../src/helpers';
-import { createInitialHistory } from '../src/internal';
 import {
   ActionConfigByType,
   DefaultPayloadConfig,
@@ -71,22 +71,20 @@ const splitPayload = (payload: Record<ID, Card | null>) => ({
   ) as Record<ID, Card>,
 });
 
-const configs: ActionConfigByType<State, PBT> = {
+const actionConfigs: ActionConfigByType<State, PBT> = {
   setColor: makeDefaultActionConfig({
-    updatePayload: state =>
-      mapWithIndex((id, color) =>
-        state.cards[id] ? state.cards[id].color : color
-      ),
     updateState: payload =>
       evolve({
         cards: mapPayloadToProp(payload, 'color'),
       }),
+    getValueFromState: flow(
+      state => state.cards,
+      map(card => card.color)
+    ),
+    updateHistory: value =>
+      mapWithIndex((id, prevColor) => value[id] ?? prevColor),
   }),
   set: makeDefaultActionConfig({
-    updatePayload: state =>
-      mapWithIndex(id =>
-        state.cards[id] === undefined ? null : state.cards[id]
-      ),
     updateState: payload => {
       const { removed, updated } = splitPayload(payload);
       return evolve({
@@ -96,6 +94,11 @@ const configs: ActionConfigByType<State, PBT> = {
         ),
       });
     },
+    getValueFromState: state => state.cards,
+    updateHistory: cardsState =>
+      mapWithIndex(id =>
+        cardsState[id] === undefined ? null : cardsState[id]
+      ),
   }),
   add: makeRelativeActionConfig({
     updateState: payload => evolve({ cards: merge(payload) }),
@@ -108,13 +111,13 @@ const configs: ActionConfigByType<State, PBT> = {
   }),
 };
 
-const { uReducer, actionCreators } = makeUndoableReducer(configs);
+const { uReducer, actionCreators } = makeUndoableReducer({ actionConfigs });
 
 const { setColor, add, remove, set } = actionCreators;
 
 let uState: UState<State, PBT> = {
   output: [],
-  history: createInitialHistory(),
+  history: initHistory(),
   state: {
     cards: {
       a: {

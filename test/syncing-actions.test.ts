@@ -4,12 +4,12 @@ import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
+  initHistory,
 } from '../src/helpers';
-import { createInitialHistory } from '../src/internal';
 import {
   ActionUnion,
   UState,
-  PayloadOriginalByType,
+  OriginalPayloadByType,
   ActionConfigByType,
   DefaultPayloadConfig,
   RelativePayloadConfig,
@@ -26,7 +26,7 @@ type PBT = {
   multiplyCount: RelativePayloadConfig<number>;
 };
 
-const configs: ActionConfigByType<State, PBT> = {
+const actionConfigs: ActionConfigByType<State, PBT> = {
   addToCount: makeRelativeActionConfig({
     makeActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
@@ -36,27 +36,30 @@ const configs: ActionConfigByType<State, PBT> = {
     updateState: amount => evolve({ count: prev => prev * amount }),
   }),
   updateCount: makeDefaultActionConfig({
-    updatePayload: state => _ => state.count,
     updateState: count => merge({ count }),
+    getValueFromState: state => state.count,
+    updateHistory: count => _ => count,
   }),
 };
 
 const createClient = () => {
   let uState: UState<State, PBT> = {
     output: [],
-    history: createInitialHistory(),
+    history: initHistory(),
     state: {
       count: 0,
     },
   };
 
-  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>(configs);
+  const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
+    actionConfigs,
+  });
 
   const { addToCount, updateCount, multiplyCount } = actionCreators;
 
   return {
     getCurrentState: () => uState,
-    push: (actions: ActionUnion<PayloadOriginalByType<PBT>>[]) => {
+    push: (actions: ActionUnion<OriginalPayloadByType<PBT>>[]) => {
       actions.forEach(action => {
         uState = uReducer(uState, {
           ...action,
@@ -160,7 +163,7 @@ describe('syncing actions without conflicts', () => {
 describe('syncing actions with conflicts ', () => {
   const client1 = createClient();
   const client2 = createClient();
-  let serverHist: ActionUnion<PayloadOriginalByType<PBT>>[] = [];
+  let serverHist: ActionUnion<OriginalPayloadByType<PBT>>[] = [];
 
   it('conflicts are resolved for all-absolute payloads', () => {
     client1.updateCount(3);
@@ -222,7 +225,7 @@ describe('syncing actions with conflicts ', () => {
     client2.push(
       effects2.map(({ type, payload }) =>
         // TODO: typing
-        configs[type].makeActionForUndo({ type, payload } as any)
+        actionConfigs[type].makeActionForUndo({ type, payload } as any)
       )
     );
 

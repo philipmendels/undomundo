@@ -1,15 +1,15 @@
+import { v4 } from 'uuid';
 import { Branch, CustomData, History, HistoryItemUnion } from './types/history';
 import {
   Endomorphism,
   OriginalActionUnion,
   PartialActionConfigByType,
   PayloadConfigByType,
-  UndoRedoActionUnion,
+  HistoryActionUnion,
   UOptions,
   Updater,
   UState,
 } from './types/main';
-import { v4 } from 'uuid';
 import {
   add1,
   evolve,
@@ -27,31 +27,6 @@ import {
 import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
-
-export const createInitialHistory = <
-  PBT extends PayloadConfigByType,
-  CD extends CustomData
->(
-  custom = {} as CD
-): History<PBT, CD> => {
-  const initialBranchId = v4();
-  return {
-    currentIndex: -1,
-    branches: {
-      [initialBranchId]: {
-        id: initialBranchId,
-        created: new Date(),
-        stack: [],
-        custom,
-      },
-    },
-    currentBranchId: initialBranchId,
-    stats: {
-      branchCounter: 1,
-      actionCounter: 0,
-    },
-  };
-};
 
 const wrap = <PBT extends PayloadConfigByType, CD extends CustomData>(
   f: (hist: History<PBT, CD>) => Endomorphism<History<PBT, CD>>
@@ -84,7 +59,7 @@ export const getBranchActions = <
   CD extends CustomData
 >(
   branch: Branch<PBT, CD>
-): UndoRedoActionUnion<PBT>[] =>
+): HistoryActionUnion<PBT>[] =>
   branch.stack.map(({ type, payload }) => ({
     type,
     payload,
@@ -182,7 +157,7 @@ export const addHistoryItem = <
 >(
   action: HistoryItemUnion<PBT>,
   options: Required<UOptions>,
-  initializeCustomBranchData: (history: History<PBT, CD>) => CD
+  initBranchData: (history: History<PBT, CD>) => CD
 ): Endomorphism<History<PBT, CD>> =>
   flow(
     ifElse(
@@ -190,7 +165,7 @@ export const addHistoryItem = <
       addActionToCurrentBranch(action),
       ifElse(
         () => options.useBranchingHistory,
-        addActionToNewBranch(action, initializeCustomBranchData),
+        addActionToNewBranch(action, initBranchData),
         flow(clearFuture(), addActionToCurrentBranch(action))
       )
     ),
@@ -252,7 +227,7 @@ export const addActionToNewBranch = <
   CD extends CustomData
 >(
   action: HistoryItemUnion<PBT>,
-  initializeCustomBranchData: (history: History<PBT, CD>) => CD
+  initBranchData: (history: History<PBT, CD>) => CD
 ) =>
   wrap<PBT, CD>(hist => {
     const currentIndex = getCurrentIndex(hist);
@@ -269,7 +244,7 @@ export const addActionToNewBranch = <
         branchId: hist.currentBranchId,
         globalIndex: hist.currentIndex,
       },
-      custom: initializeCustomBranchData(hist),
+      custom: initBranchData(hist),
     };
 
     return evolve({
@@ -348,13 +323,13 @@ export const undo = <S, PBT extends PayloadConfigByType>(
     evolve({
       history: evolve({
         currentIndex: subtract1,
-        branches: config.updatePayloadOnUndo
+        branches: config.updateHistoryOnUndo
           ? evolve({
               [currentBranch.id]: evolve({
                 stack: modifyArrayAt(
                   currentIndex,
                   evolve({
-                    payload: config.updatePayloadOnUndo(state),
+                    payload: config.updateHistoryOnUndo(state),
                   } as Evolver<HistoryItemUnion<PBT>>)
                 ),
               }),
@@ -383,20 +358,20 @@ export const redo = <S, PBT extends PayloadConfigByType>(
   const currentItem = currentBranch.stack[currentIndex + 1];
   const { type, payload } = currentItem;
   const config = actionConfigs[type];
-  const newAction = config.makeActionForRedo({ type, payload });
+  const newAction = { type, payload: config.getPayloadForRedo(payload) };
 
   return pipe(
     uState,
     evolve({
       history: evolve({
         currentIndex: add1,
-        branches: config.updatePayloadOnRedo
+        branches: config.updateHistoryOnRedo
           ? evolve({
               [currentBranch.id]: evolve({
                 stack: modifyArrayAt(
                   currentIndex + 1,
                   evolve({
-                    payload: config.updatePayloadOnRedo(state),
+                    payload: config.updateHistoryOnRedo(state),
                   } as Evolver<HistoryItemUnion<PBT>>)
                 ),
               }),
