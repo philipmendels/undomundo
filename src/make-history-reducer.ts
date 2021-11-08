@@ -2,9 +2,9 @@
 // - dispatch change history action and redispatch undo action (or combine the two)
 // - dispatch result of makeActionForUndo
 
-import { pipe } from 'fp-ts/function';
+import { identity, pipe } from 'fp-ts/function';
 import { getCurrentBranch, getCurrentIndex } from './internal';
-import { CustomData, History } from './types/history';
+import { CustomData, History, HistoryItemUnion } from './types/history';
 import {
   HistoryUpdate,
   PartialActionConfigByType,
@@ -12,7 +12,7 @@ import {
   Reducer,
   UOptions,
 } from './types/main';
-import { evolve, subtract1, updateArrayAt } from './util';
+import { evolve, merge, modifyArrayAt, subtract1 } from './util';
 
 // middle-ware: time-travel:
 // - get the history and the state and both reducers
@@ -52,25 +52,26 @@ export const makeHistoryReducer = <
     const currentBranch = getCurrentBranch(history);
     const currentIndex = getCurrentIndex(history);
 
-    console.log('HISTORY REDUCER', action, history);
-
     if (action.type === 'UNDO_WITH_UPDATE') {
-      const { payload } = action;
-      if (payload) {
-        return pipe(
-          history,
-          evolve({
-            currentIndex: subtract1,
-            branches: evolve({
-              [currentBranch.id]: evolve({
-                stack: updateArrayAt(currentIndex, action.payload),
-              }),
-            }),
-          })
-        );
-      } else {
-        return history;
-      }
+      return pipe(
+        history,
+        evolve({
+          currentIndex: subtract1,
+          branches:
+            action.payload === undefined
+              ? identity
+              : evolve({
+                  [currentBranch.id]: evolve({
+                    stack: modifyArrayAt(
+                      currentIndex,
+                      merge({ payload: action.payload } as Partial<
+                        HistoryItemUnion<PBT>
+                      >)
+                    ),
+                  }),
+                }),
+        })
+      );
     }
     return history;
   };
