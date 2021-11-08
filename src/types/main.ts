@@ -39,6 +39,10 @@ export type HistoryPayloadByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PBT[K]['history'];
 };
 
+export type HistoryPayloadUnion<PBT extends PayloadConfigByType> = ValueOf<
+  HistoryPayloadByType<PBT>
+>;
+
 export type ActionUnion<PBT extends StringMap> = ValueOf<
   {
     [K in keyof PBT]: Action<K, PBT[K]>;
@@ -156,6 +160,20 @@ export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
   ) => S;
 };
 
+export type HistoryUpdate<PBT extends PayloadConfigByType> =
+  | {
+      type: 'UNDO_WITH_UPDATE';
+      payload: HistoryPayloadUnion<PBT>;
+    }
+  | {
+      type: 'REDO_WITH_UPDATE';
+      payload: HistoryPayloadUnion<PBT>;
+    }
+  | {
+      type: 'CHANGE_BRANCH';
+      payload: string;
+    };
+
 export type UState<
   S,
   PBT extends PayloadConfigByType,
@@ -164,6 +182,7 @@ export type UState<
   state: S;
   history: History<PBT, CustomBranchData>;
   output: OriginalActionUnion<PBT>[];
+  updates?: HistoryUpdate<PBT>[];
 };
 
 export type UndoAction = {

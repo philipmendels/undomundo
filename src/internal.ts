@@ -9,6 +9,7 @@ import {
   UOptions,
   Updater,
   UState,
+  HistoryUpdate,
 } from './types/main';
 import {
   add1,
@@ -20,7 +21,6 @@ import {
   whenIsDefined,
   slice,
   modifyArrayAt,
-  subtract1,
   Evolver,
   repeatApply,
 } from './util';
@@ -304,12 +304,11 @@ export const addActionToCurrentBranch = <
     })
   );
 
-export const undo = <S, PBT extends PayloadConfigByType>(
+export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
+): Endomorphism<UState<S, PBT, CD>> => uState => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -318,29 +317,25 @@ export const undo = <S, PBT extends PayloadConfigByType>(
   const config = actionConfigs[type];
   const newAction = config.makeActionForUndo({ type, payload });
 
+  const historyUpdate: HistoryUpdate<PBT> = {
+    type: 'UNDO_WITH_UPDATE',
+    payload:
+      config.updateHistoryOnUndo &&
+      config.updateHistoryOnUndo(state)(
+        currentBranch.stack[currentIndex].payload
+      ),
+  };
+
   return pipe(
     uState,
     evolve({
-      history: evolve({
-        currentIndex: subtract1,
-        branches: config.updateHistoryOnUndo
-          ? evolve({
-              [currentBranch.id]: evolve({
-                stack: modifyArrayAt(
-                  currentIndex,
-                  evolve({
-                    payload: config.updateHistoryOnUndo(state),
-                  } as Evolver<HistoryItemUnion<PBT>>)
-                ),
-              }),
-            })
-          : identity,
-      }),
+      history: reduceHistory(historyUpdate),
       state: reduce({
         ...newAction,
         undoMundo: { isUndo: true },
       }),
       output: append(newAction),
+      // updates: whenIsDefined(append<HistoryUpdate<PBT>>(historyUpdate)),
     })
   );
 };
@@ -384,13 +379,16 @@ export const redo = <S, PBT extends PayloadConfigByType>(
   );
 };
 
-export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
+export const timeTravelCurrentBranch = <
+  S,
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
   indexOnBranch: number
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
+): Endomorphism<UState<S, PBT, CD>> => uState => {
   const { history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -404,7 +402,7 @@ export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
   } else if (indexOnBranch < currentIndex) {
     return repeatApply(
       currentIndex - indexOnBranch,
-      undo(reduce, actionConfigs)
+      undo(reduce, reduceHistory, actionConfigs)
     )(uState);
   } else {
     return repeatApply(

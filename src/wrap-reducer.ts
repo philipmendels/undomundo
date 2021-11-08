@@ -12,6 +12,7 @@ import {
   undo,
   updatePath,
 } from './internal';
+import { makeHistoryReducer } from './make-history-reducer';
 import { CustomData, History } from './types/history';
 import {
   PayloadConfigByType,
@@ -24,6 +25,7 @@ import {
   MetaAction,
   UActionCreatorsByType,
   OriginalPayloadByType,
+  HistoryUpdate,
 } from './types/main';
 import { evolve, mapRecordWithKey, when } from './util';
 
@@ -55,6 +57,12 @@ export const wrapReducer = <
     ...options,
   };
 
+  const historyReducer = makeHistoryReducer<PBT, CBD>();
+
+  const reduceHistory = (action: HistoryUpdate<PBT>) => (
+    history: History<PBT, CBD>
+  ) => historyReducer(history, action);
+
   const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
 
@@ -72,7 +80,7 @@ export const wrapReducer = <
     if (action.type === 'undo') {
       return pipe(
         uStateWithNewOutput,
-        when(() => canUndo(history), undo(reduce, actionConfigs))
+        when(() => canUndo(history), undo(reduce, reduceHistory, actionConfigs))
       );
     } else if (action.type === 'redo') {
       return pipe(
@@ -84,6 +92,7 @@ export const wrapReducer = <
       if (branchId === currentBranch.id) {
         return timeTravelCurrentBranch(
           reduce,
+          reduceHistory,
           actionConfigs,
           indexOnBranch
         )(uStateWithNewOutput);
@@ -98,12 +107,18 @@ export const wrapReducer = <
             evolve({ history: storeLastGlobalIndex() }),
             when(
               () => caIndex < history.currentIndex,
-              timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+              timeTravelCurrentBranch(
+                reduce,
+                reduceHistory,
+                actionConfigs,
+                caIndex
+              )
             ),
             evolve({ history: updatePath(path.map(b => b.id)) }),
             // current branch is updated
             timeTravelCurrentBranch(
               reduce,
+              reduceHistory,
               actionConfigs,
               parentIndex + 1 + indexOnBranch
             )
@@ -134,7 +149,12 @@ export const wrapReducer = <
               () =>
                 caIndex < history.currentIndex ||
                 travelTo === 'LAST_COMMON_ACTION',
-              timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+              timeTravelCurrentBranch(
+                reduce,
+                reduceHistory,
+                actionConfigs,
+                caIndex
+              )
             ),
             evolve({
               history: updatePath(path.map(b => b.id)),
@@ -144,6 +164,7 @@ export const wrapReducer = <
               () => travelTo === 'LAST_KNOWN_POSITION_ON_BRANCH',
               timeTravelCurrentBranch(
                 reduce,
+                reduceHistory,
                 actionConfigs,
                 targetBranch.lastGlobalIndex!
               )
@@ -152,6 +173,7 @@ export const wrapReducer = <
               () => travelTo === 'HEAD_OF_BRANCH',
               timeTravelCurrentBranch(
                 reduce,
+                reduceHistory,
                 actionConfigs,
                 parentIndex + targetBranch.stack.length
               )
