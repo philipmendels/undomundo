@@ -1,5 +1,5 @@
 import { negate } from 'fp-ts-std/Number';
-import { initHistory, makeRelativeActionConfig } from '../src/helpers';
+import { initUState, makeRelativeActionConfig } from '../src/helpers';
 import {
   getBranchActions,
   getCurrentBranch,
@@ -10,11 +10,7 @@ import {
   MakeUndoableStateProps,
 } from '../src/make-undoable-state';
 import { ParentConnection } from '../src/types/history';
-import {
-  OriginalActionUnion,
-  RelativePayloadConfig,
-  UState,
-} from '../src/types/main';
+import { OriginalActionUnion, RelativePayloadConfig } from '../src/types/main';
 import { add, evolve } from '../src/util';
 
 type State = {
@@ -25,13 +21,9 @@ type PBT = {
   addToCount: RelativePayloadConfig<number>;
 };
 
-let newUState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 2,
-  },
-};
+let newUState = initUState<State, PBT>({
+  count: 2,
+});
 
 const props: MakeUndoableStateProps<State, PBT> = {
   initialUState: newUState,

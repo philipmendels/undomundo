@@ -4,7 +4,7 @@ import { wrapReducer } from '../src';
 import {
   makeDefaultPartialActionConfig,
   makeRelativePartialActionConfig,
-  initHistory,
+  initUState,
 } from '../src/helpers';
 import {
   getCurrentBranch,
@@ -16,7 +16,6 @@ import {
   Reducer,
   RelativePayloadConfig,
   HistoryActionUnion,
-  UState,
 } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
@@ -44,13 +43,9 @@ type PBT = {
   subtractFromCount: RelativePayloadConfig<number>;
 };
 
-let uState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 3,
-  },
-};
+let uState = initUState<State, PBT>({
+  count: 3,
+});
 
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'addToCount') {
@@ -182,7 +177,8 @@ describe('wrapReducer', () => {
   it('ignores undo if no items to undo', () => {
     const prevUState = uState;
     uState = uReducer(uState, { type: 'undo' });
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('redo works', () => {
@@ -221,7 +217,8 @@ describe('wrapReducer', () => {
   it('ignores redo if no items to redo', () => {
     const prevUState = uState;
     uState = uReducer(uState, { type: 'redo' });
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('ignores unknown action', () => {
@@ -229,7 +226,8 @@ describe('wrapReducer', () => {
     uState = uReducer(uState, {
       type: 'some-unknown-type',
     } as any);
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('ignores update that leads to referentially equal state', () => {
@@ -357,13 +355,9 @@ describe('wrapReducer', () => {
   });
 
   it('history rewrite works on undo', () => {
-    uState = {
-      output: [],
-      history: initHistory(),
-      state: {
-        count: 2,
-      },
-    };
+    uState = initUState<State, PBT>({
+      count: 2,
+    });
 
     uState = uReducer(uState, {
       type: 'updateCount',

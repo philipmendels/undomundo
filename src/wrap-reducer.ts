@@ -1,16 +1,12 @@
 import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
-import { v4 } from 'uuid';
 import { canRedo, canUndo } from './helpers';
 import {
-  addHistoryItem,
   getBranchSwitchProps,
   getCurrentBranch,
   redo,
-  storeLastGlobalIndex,
   timeTravelCurrentBranch,
   undo,
-  updatePath,
 } from './internal';
 import { makeHistoryReducer } from './make-history-reducer';
 import { CustomData, History } from './types/history';
@@ -28,6 +24,8 @@ import {
   HistoryUpdate,
 } from './types/main';
 import { evolve, mapRecordWithKey, when } from './util';
+
+const storeIndexAction: HistoryUpdate<any> = { type: 'STORE_INDEX' };
 
 export type WrapReducerProps<
   S,
@@ -57,7 +55,10 @@ export const wrapReducer = <
     ...options,
   };
 
-  const historyReducer = makeHistoryReducer<PBT, CBD>();
+  const historyReducer = makeHistoryReducer<PBT, CBD>({
+    options: mergedOptions,
+    initBranchData,
+  });
 
   const reduceHistory = (action: HistoryUpdate<PBT>) => (
     history: History<PBT, CBD>
@@ -67,13 +68,13 @@ export const wrapReducer = <
     reducer(state, action);
 
   const uReducer: UReducerOf<S, PBT, CBD> = (uState, uReducerAction) => {
-    const { state, history } = uState;
-    const currentBranch = getCurrentBranch(history);
-
     const uStateWithNewOutput: typeof uState =
       mergedOptions.keepOutput || uState.output.length === 0
-        ? uState
-        : { state, history, output: [] };
+        ? { ...uState, updates: [] }
+        : { ...uState, updates: [], output: [] };
+
+    const { state, history } = uStateWithNewOutput;
+    const currentBranch = getCurrentBranch(history);
 
     const action = uReducerAction as MetaAction;
 
@@ -85,7 +86,7 @@ export const wrapReducer = <
     } else if (action.type === 'redo') {
       return pipe(
         uStateWithNewOutput,
-        when(() => canRedo(history), redo(reduce, actionConfigs))
+        when(() => canRedo(history), redo(reduce, reduceHistory, actionConfigs))
       );
     } else if (action.type === 'timeTravel') {
       const { indexOnBranch, branchId = currentBranch.id } = action.payload;
@@ -97,14 +98,21 @@ export const wrapReducer = <
           indexOnBranch
         )(uStateWithNewOutput);
       } else {
-        const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        const { caIndex, pathToTarget, parentIndex } = getBranchSwitchProps(
           history,
           branchId
         );
+        const rebuildBranchesAction: HistoryUpdate<PBT> = {
+          type: 'REBUILD_BRANCHES',
+          payload: pathToTarget,
+        };
+
         return pipe(
           uStateWithNewOutput,
           flow(
-            evolve({ history: storeLastGlobalIndex() }),
+            evolve({
+              history: reduceHistory(storeIndexAction),
+            }),
             when(
               () => caIndex < history.currentIndex,
               timeTravelCurrentBranch(
@@ -114,7 +122,10 @@ export const wrapReducer = <
                 caIndex
               )
             ),
-            evolve({ history: updatePath(path.map(b => b.id)) }),
+            evolve({
+              history: reduceHistory(rebuildBranchesAction),
+              updates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
+            }),
             // current branch is updated
             timeTravelCurrentBranch(
               reduce,
@@ -137,14 +148,23 @@ export const wrapReducer = <
         );
       } else {
         const targetBranch = history.branches[branchId];
-        const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        const { caIndex, pathToTarget, parentIndex } = getBranchSwitchProps(
           history,
           branchId
         );
+
+        const rebuildBranchesAction: HistoryUpdate<PBT> = {
+          type: 'REBUILD_BRANCHES',
+          payload: pathToTarget,
+        };
+
         return pipe(
           uStateWithNewOutput,
           flow(
-            evolve({ history: storeLastGlobalIndex() }),
+            evolve({
+              history: reduceHistory(storeIndexAction),
+              updates: append<HistoryUpdate<PBT>>(storeIndexAction),
+            }),
             when(
               () =>
                 caIndex < history.currentIndex ||
@@ -157,7 +177,8 @@ export const wrapReducer = <
               )
             ),
             evolve({
-              history: updatePath(path.map(b => b.id)),
+              history: reduceHistory(rebuildBranchesAction),
+              updates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
             }),
             // current branch is updated
             when(
@@ -208,24 +229,21 @@ export const wrapReducer = <
         // If used with Redux this reducer may receive unrelated actions.
         const skipOutput = !config || meta?.skipOutput;
 
+        const historyUpdate: HistoryUpdate<PBT> = {
+          type: 'ADD_TO_HISTORY',
+          payload: {
+            type,
+            payload: config.initPayloadInHistory(state)(
+              payload,
+              meta?.undoValue
+            ),
+          },
+        };
+
         return pipe(
           uStateWithNewOutput,
           evolve({
-            history: skipHistory
-              ? identity
-              : addHistoryItem(
-                  {
-                    type,
-                    payload: config.initPayloadInHistory(state)(
-                      payload,
-                      meta?.undoValue
-                    ),
-                    id: v4(),
-                    created: new Date(),
-                  },
-                  mergedOptions,
-                  initBranchData
-                ),
+            history: skipHistory ? identity : reduceHistory(historyUpdate),
             state: () => newState,
             output: skipOutput ? identity : append(originalAction),
           })

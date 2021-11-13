@@ -4,11 +4,10 @@ import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
-  initHistory,
+  initUState,
 } from '../src/helpers';
 import {
   ActionUnion,
-  UState,
   OriginalPayloadByType,
   ActionConfigByType,
   DefaultPayloadConfig,
@@ -43,13 +42,9 @@ const actionConfigs: ActionConfigByType<State, PBT> = {
 };
 
 const createClient = () => {
-  let uState: UState<State, PBT> = {
-    output: [],
-    history: initHistory(),
-    state: {
-      count: 0,
-    },
-  };
+  let uState = initUState<State, PBT>({
+    count: 0,
+  });
 
   const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
     actionConfigs,

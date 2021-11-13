@@ -4,14 +4,10 @@ import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
-  initHistory,
+  initUState,
 } from '../src/helpers';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
-import {
-  DefaultPayloadConfig,
-  RelativePayloadConfig,
-  UState,
-} from '../src/types/main';
+import { DefaultPayloadConfig, RelativePayloadConfig } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
 type State = {
@@ -50,13 +46,9 @@ const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
 const { addToCount, addToCount_alt, updateCount } = actionCreators;
 
 describe('makeUndoableReducer', () => {
-  let uState: UState<State, PBT> = {
-    output: [],
-    history: initHistory(),
-    state: {
-      count: 3,
-    },
-  };
+  let uState = initUState<State, PBT>({
+    count: 3,
+  });
 
   it('update works', () => {
     uState = uReducer(uState, addToCount(3));

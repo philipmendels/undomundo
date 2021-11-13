@@ -177,11 +177,12 @@ export const getOutputFunction = <
 export const initUState = <
   S,
   PBT extends PayloadConfigByType,
-  CD extends CustomData
+  CD extends CustomData = {}
 >(
   state: S,
   custom = {} as CD
 ): UState<S, PBT, CD> => ({
+  updates: [],
   output: [],
   history: initHistory(custom),
   state,
@@ -189,7 +190,7 @@ export const initUState = <
 
 export const initHistory = <
   PBT extends PayloadConfigByType,
-  CD extends CustomData
+  CD extends CustomData = {}
 >(
   custom = {} as CD
 ): History<PBT, CD> => {

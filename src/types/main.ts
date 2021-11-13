@@ -170,8 +170,15 @@ export type HistoryUpdate<PBT extends PayloadConfigByType> =
       payload: HistoryPayloadUnion<PBT>;
     }
   | {
-      type: 'CHANGE_BRANCH';
-      payload: string;
+      type: 'ADD_TO_HISTORY';
+      payload: HistoryActionUnion<PBT>;
+    }
+  | {
+      type: 'STORE_INDEX';
+    }
+  | {
+      type: 'REBUILD_BRANCHES';
+      payload: string[];
     };
 
 export type UState<
@@ -182,7 +189,7 @@ export type UState<
   state: S;
   history: History<PBT, CustomBranchData>;
   output: OriginalActionUnion<PBT>[];
-  updates?: HistoryUpdate<PBT>[];
+  updates: HistoryUpdate<PBT>[];
 };
 
 export type UndoAction = {

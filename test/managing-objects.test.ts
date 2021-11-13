@@ -7,13 +7,12 @@ import { redo, undo } from '../src/action-creators';
 import {
   makeDefaultActionConfig,
   makeRelativeActionConfig,
-  initHistory,
+  initUState,
 } from '../src/helpers';
 import {
   ActionConfigByType,
   DefaultPayloadConfig,
   RelativePayloadConfig,
-  UState,
 } from '../src/types/main';
 import { evolve, merge } from '../src/util';
 
@@ -115,26 +114,22 @@ const { uReducer, actionCreators } = makeUndoableReducer({ actionConfigs });
 
 const { setColor, add, remove, set } = actionCreators;
 
-let uState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    cards: {
-      a: {
-        id: 'a',
-        color: 'red',
-      },
-      b: {
-        id: 'b',
-        color: 'red',
-      },
-      c: {
-        id: 'c',
-        color: 'red',
-      },
+let uState = initUState<State, PBT>({
+  cards: {
+    a: {
+      id: 'a',
+      color: 'red',
+    },
+    b: {
+      id: 'b',
+      color: 'red',
+    },
+    c: {
+      id: 'c',
+      color: 'red',
     },
   },
-};
+});
 
 describe('multi-select', () => {
   const s0 = uState.state.cards;

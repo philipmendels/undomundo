@@ -1,6 +1,6 @@
-import { makeDefaultActionConfig, initHistory } from '../src/helpers';
+import { makeDefaultActionConfig, initUState } from '../src/helpers';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
-import { DefaultPayloadConfig, UState } from '../src/types/main';
+import { DefaultPayloadConfig } from '../src/types/main';
 import { merge } from '../src/util';
 
 type State = {
@@ -13,13 +13,9 @@ type PBT = {
 
 type CallbackParams = OnChangeEvent<State, PBT, {}>[];
 
-let newUState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 2,
-  },
-};
+let newUState = initUState<State, PBT>({
+  count: 2,
+});
 
 const onChange = jest.fn<void, CallbackParams>();
 

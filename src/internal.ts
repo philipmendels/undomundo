@@ -20,12 +20,10 @@ import {
   subtract,
   whenIsDefined,
   slice,
-  modifyArrayAt,
-  Evolver,
   repeatApply,
 } from './util';
 import { append } from 'fp-ts/Array';
-import { flow, identity, pipe } from 'fp-ts/function';
+import { flow, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
 const wrap = <PBT extends PayloadConfigByType, CD extends CustomData>(
@@ -312,18 +310,13 @@ export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
-  const currentItem = currentBranch.stack[currentIndex];
-  const { type, payload } = currentItem;
-  const config = actionConfigs[type];
-  const newAction = config.makeActionForUndo({ type, payload });
+  const { type, payload } = currentBranch.stack[currentIndex];
+  const { makeActionForUndo, updateHistoryOnUndo } = actionConfigs[type];
+  const newAction = makeActionForUndo({ type, payload });
 
   const historyUpdate: HistoryUpdate<PBT> = {
     type: 'UNDO_WITH_UPDATE',
-    payload:
-      config.updateHistoryOnUndo &&
-      config.updateHistoryOnUndo(state)(
-        currentBranch.stack[currentIndex].payload
-      ),
+    payload: updateHistoryOnUndo?.(state)(payload),
   };
 
   return pipe(
@@ -335,46 +328,36 @@ export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
         undoMundo: { isUndo: true },
       }),
       output: append(newAction),
-      // updates: whenIsDefined(append<HistoryUpdate<PBT>>(historyUpdate)),
+      updates: append<HistoryUpdate<PBT>>(historyUpdate),
     })
   );
 };
 
-export const redo = <S, PBT extends PayloadConfigByType>(
+export const redo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
   reduce: Updater<OriginalActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
   actionConfigs: PartialActionConfigByType<S, PBT>
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
+): Endomorphism<UState<S, PBT, CD>> => uState => {
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
 
-  const currentItem = currentBranch.stack[currentIndex + 1];
-  const { type, payload } = currentItem;
-  const config = actionConfigs[type];
-  const newAction = { type, payload: config.getPayloadForRedo(payload) };
+  const { type, payload } = currentBranch.stack[currentIndex + 1];
+  const { getPayloadForRedo, updateHistoryOnRedo } = actionConfigs[type];
+  const newAction = { type, payload: getPayloadForRedo(payload) };
+
+  const historyUpdate: HistoryUpdate<PBT> = {
+    type: 'REDO_WITH_UPDATE',
+    payload: updateHistoryOnRedo?.(state)(payload),
+  };
 
   return pipe(
     uState,
     evolve({
-      history: evolve({
-        currentIndex: add1,
-        branches: config.updateHistoryOnRedo
-          ? evolve({
-              [currentBranch.id]: evolve({
-                stack: modifyArrayAt(
-                  currentIndex + 1,
-                  evolve({
-                    payload: config.updateHistoryOnRedo(state),
-                  } as Evolver<HistoryItemUnion<PBT>>)
-                ),
-              }),
-            })
-          : identity,
-      }),
+      history: reduceHistory(historyUpdate),
       state: reduce(newAction),
       output: append(newAction),
+      updates: append<HistoryUpdate<PBT>>(historyUpdate),
     })
   );
 };
@@ -407,22 +390,25 @@ export const timeTravelCurrentBranch = <
   } else {
     return repeatApply(
       indexOnBranch - currentIndex,
-      redo(reduce, actionConfigs)
+      redo(reduce, reduceHistory, actionConfigs)
     )(uState);
   }
 };
 
+/**
+ * returns [currentBranch, ...possibleBranches, caBranch]
+ */
 export const getPathFromCommonAncestor = <
   PBT extends PayloadConfigByType,
   CD extends CustomData
 >(
   history: History<PBT, CD>,
   branchId: string,
-  path: Branch<PBT, CD>[] = []
+  pathToTarget: Branch<PBT, CD>[] = []
 ): Branch<PBT, CD>[] => {
   const branch = history.branches[branchId];
   if (branch.parentConnection) {
-    const newPath = [branch, ...path];
+    const newPath = [branch, ...pathToTarget];
     if (branch.parentConnection.branchId === history.currentBranchId) {
       return newPath;
     } else {
@@ -441,11 +427,11 @@ export const getBranchSwitchProps = <
   CD extends CustomData
 >(
   history: History<PBT, CD>,
-  branchId: string
+  targetBranchId: string
 ) => {
-  const path = getPathFromCommonAncestor(history, branchId);
+  const path = getPathFromCommonAncestor(history, targetBranchId);
   return {
-    path,
+    pathToTarget: path.map(b => b.id),
     parentIndex: path[path.length - 1].parentConnection!.globalIndex,
     caIndex: path[0].parentConnection!.globalIndex,
   };
