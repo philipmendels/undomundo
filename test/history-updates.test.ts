@@ -63,5 +63,8 @@ describe('history updates', () => {
     expectEqual(
       switchToBranch(Object.keys(history.branches)[1], 'HEAD_OF_BRANCH')
     );
+    state = { count: 999 }; // external update
+    expectEqual(undo());
+    expectEqual(redo());
   });
 });
