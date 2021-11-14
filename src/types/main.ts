@@ -253,9 +253,12 @@ export type UReducerOf<
   CustomBranchData extends CustomData = {}
 > = Reducer<UState<S, PBT, CustomBranchData>, UReducerAction<PBT>>;
 
-export type UOptions = {
+export type HistoryOptions = {
   useBranchingHistory?: boolean;
   maxHistoryLength?: number;
+};
+
+export type UOptions = HistoryOptions & {
   keepOutput?: boolean;
 };
 

@@ -6,10 +6,10 @@ import {
   PartialActionConfigByType,
   PayloadConfigByType,
   HistoryActionUnion,
-  UOptions,
   Updater,
   UState,
   HistoryUpdate,
+  HistoryOptions,
 } from './types/main';
 import {
   add1,
@@ -154,7 +154,7 @@ export const addHistoryItem = <
   CD extends CustomData
 >(
   action: HistoryItemUnion<PBT>,
-  options: Required<UOptions>,
+  options: Required<HistoryOptions>,
   initBranchData: (history: History<PBT, CD>) => CD
 ): Endomorphism<History<PBT, CD>> =>
   flow(

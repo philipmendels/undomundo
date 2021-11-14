@@ -45,18 +45,13 @@ export const wrapReducer = <
 >({
   reducer,
   actionConfigs,
-  options,
-  initBranchData = () => ({} as CBD),
+  options = {},
+  initBranchData,
 }: WrapReducerProps<S, PBT, CBD>) => {
-  const mergedOptions: Required<UOptions> = {
-    useBranchingHistory: false,
-    maxHistoryLength: Infinity,
-    keepOutput: false,
-    ...options,
-  };
+  const { keepOutput = false, ...historyOptions } = options;
 
   const historyReducer = makeHistoryReducer<PBT, CBD>({
-    options: mergedOptions,
+    options: historyOptions,
     initBranchData,
   });
 
@@ -69,7 +64,7 @@ export const wrapReducer = <
 
   const uReducer: UReducerOf<S, PBT, CBD> = (uState, uReducerAction) => {
     const uStateWithNewOutput: typeof uState =
-      mergedOptions.keepOutput || uState.output.length === 0
+      keepOutput || uState.output.length === 0
         ? { ...uState, updates: [] }
         : { ...uState, updates: [], output: [] };
 
@@ -246,6 +241,7 @@ export const wrapReducer = <
             history: skipHistory ? identity : reduceHistory(historyUpdate),
             state: () => newState,
             output: skipOutput ? identity : append(originalAction),
+            updates: append<HistoryUpdate<PBT>>(historyUpdate),
           })
         );
       }
@@ -262,6 +258,8 @@ export const wrapReducer = <
 
   return {
     uReducer,
+    stateReducer: reducer,
+    historyReducer,
     actionCreators,
   };
 };

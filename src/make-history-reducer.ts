@@ -1,7 +1,3 @@
-// middle-ware: undo -> updateHistoryOnUndo ->
-// - dispatch change history action and redispatch undo action (or combine the two)
-// - dispatch result of makeActionForUndo
-
 import { identity, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
 import {
@@ -13,28 +9,35 @@ import {
 } from './internal';
 import { CustomData, History, HistoryItemUnion } from './types/history';
 import {
+  HistoryOptions,
   HistoryUpdate,
   PayloadConfigByType,
   Reducer,
-  UOptions,
 } from './types/main';
 import { add1, evolve, merge, modifyArrayAt, subtract1 } from './util';
 
 export type MakeHistoryReducerProps<
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
-> = {
-  options: Required<UOptions>;
-  initBranchData: (history: History<PBT, CBD>) => CBD;
-};
+> =
+  | {
+      options?: HistoryOptions;
+      initBranchData?: (history: History<PBT, CBD>) => CBD;
+    }
+  | undefined;
 
 export const makeHistoryReducer = <
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
 >({
-  options,
-  initBranchData,
-}: MakeHistoryReducerProps<PBT, CBD>) => {
+  options = {},
+  initBranchData = () => ({} as CBD),
+}: MakeHistoryReducerProps<PBT, CBD> = {}) => {
+  const mergedOptions: Required<HistoryOptions> = {
+    useBranchingHistory: false,
+    maxHistoryLength: Infinity,
+    ...options,
+  };
   const reducer: Reducer<History<PBT, CBD>, HistoryUpdate<PBT>> = (
     history,
     action
@@ -91,7 +94,7 @@ export const makeHistoryReducer = <
             id: v4(),
             created: new Date(),
           },
-          options,
+          mergedOptions,
           initBranchData
         )
       );
