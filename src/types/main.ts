@@ -188,8 +188,8 @@ export type UState<
 > = {
   state: S;
   history: History<PBT, CustomBranchData>;
-  output: OriginalActionUnion<PBT>[];
-  updates: HistoryUpdate<PBT>[];
+  stateUpdates: OriginalActionUnion<PBT>[];
+  historyUpdates: HistoryUpdate<PBT>[];
 };
 
 export type UndoAction = {

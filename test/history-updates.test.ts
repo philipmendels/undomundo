@@ -40,9 +40,12 @@ const {
 const { updateCount } = actionCreators;
 
 const expectEqual = (action: UReducerAction<PBT>) => {
-  let uState = uReducer({ state, history, output: [], updates: [] }, action);
-  history = uState.updates.reduce(historyReducer, history);
-  state = uState.output.reduce(stateReducer, state);
+  let uState = uReducer(
+    { state, history, stateUpdates: [], historyUpdates: [] },
+    action
+  );
+  history = uState.historyUpdates.reduce(historyReducer, history);
+  state = uState.stateUpdates.reduce(stateReducer, state);
   expect(Object.values(history.branches).map(getBranchActions)).toStrictEqual(
     Object.values(uState.history.branches).map(getBranchActions)
   );
@@ -57,14 +60,16 @@ describe('history updates', () => {
     expectEqual(undo());
     expectEqual(undo()); // noop:
     expectEqual(redo());
-    expectEqual(updateCount(12)); // new branch
-    expectEqual(updateCount(10));
+    expectEqual(updateCount(10)); // new branch
+    expectEqual(updateCount(12));
     expectEqual(timeTravel(0, Object.keys(history.branches)[0]));
     expectEqual(
       switchToBranch(Object.keys(history.branches)[1], 'HEAD_OF_BRANCH')
     );
-    state = { count: 999 }; // external update
+    state = stateReducer(state, updateCount(999)); // external update
+    expect(state).toStrictEqual({ count: 999 });
     expectEqual(undo());
     expectEqual(redo());
+    expectEqual(updateCount(333, { skipHistory: true }));
   });
 });

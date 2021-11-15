@@ -21,8 +21,8 @@ import {
   whenIsDefined,
   slice,
   repeatApply,
+  append,
 } from './util';
-import { append } from 'fp-ts/Array';
 import { flow, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
@@ -327,8 +327,8 @@ export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
         ...newAction,
         undoMundo: { isUndo: true },
       }),
-      output: append(newAction),
-      updates: append<HistoryUpdate<PBT>>(historyUpdate),
+      stateUpdates: append(newAction),
+      historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
     })
   );
 };
@@ -356,8 +356,8 @@ export const redo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
     evolve({
       history: reduceHistory(historyUpdate),
       state: reduce(newAction),
-      output: append(newAction),
-      updates: append<HistoryUpdate<PBT>>(historyUpdate),
+      stateUpdates: append(newAction),
+      historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
     })
   );
 };

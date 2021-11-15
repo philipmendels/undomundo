@@ -168,9 +168,12 @@ export const getOutputFunction = <
   uReducer: UReducerOf<S, PBT, CBD>
 ) => {
   return ([uState, action]: Parameters<UReducerOf<S, PBT, CBD>>) => {
-    const stateWithEmptyOutput: UState<S, PBT, CBD> = { ...uState, output: [] };
-    const { output } = uReducer(stateWithEmptyOutput, action);
-    return output;
+    const stateWithEmptyOutput: UState<S, PBT, CBD> = {
+      ...uState,
+      stateUpdates: [],
+    };
+    const { stateUpdates } = uReducer(stateWithEmptyOutput, action);
+    return stateUpdates;
   };
 };
 
@@ -182,8 +185,8 @@ export const initUState = <
   state: S,
   custom = {} as CD
 ): UState<S, PBT, CD> => ({
-  updates: [],
-  output: [],
+  historyUpdates: [],
+  stateUpdates: [],
   history: initHistory(custom),
   state,
 });

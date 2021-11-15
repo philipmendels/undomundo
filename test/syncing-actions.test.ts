@@ -63,10 +63,10 @@ const createClient = () => {
       });
     },
     pull: () => {
-      const actions = uState.output;
+      const actions = uState.stateUpdates;
       uState = {
         ...uState,
-        output: [],
+        stateUpdates: [],
       };
       return actions;
     },

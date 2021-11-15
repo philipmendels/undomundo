@@ -1,4 +1,3 @@
-import { append } from 'fp-ts/Array';
 import { flow, identity, pipe } from 'fp-ts/function';
 import { canRedo, canUndo } from './helpers';
 import {
@@ -23,7 +22,7 @@ import {
   OriginalPayloadByType,
   HistoryUpdate,
 } from './types/main';
-import { evolve, mapRecordWithKey, when } from './util';
+import { append, evolve, mapRecordWithKey, when } from './util';
 
 const storeIndexAction: HistoryUpdate<any> = { type: 'STORE_INDEX' };
 
@@ -64,9 +63,9 @@ export const wrapReducer = <
 
   const uReducer: UReducerOf<S, PBT, CBD> = (uState, uReducerAction) => {
     const uStateWithNewOutput: typeof uState =
-      keepOutput || uState.output.length === 0
-        ? { ...uState, updates: [] }
-        : { ...uState, updates: [], output: [] };
+      keepOutput || uState.stateUpdates.length === 0
+        ? { ...uState, historyUpdates: [] }
+        : { ...uState, historyUpdates: [], stateUpdates: [] };
 
     const { state, history } = uStateWithNewOutput;
     const currentBranch = getCurrentBranch(history);
@@ -119,7 +118,7 @@ export const wrapReducer = <
             ),
             evolve({
               history: reduceHistory(rebuildBranchesAction),
-              updates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
             }),
             // current branch is updated
             timeTravelCurrentBranch(
@@ -158,7 +157,7 @@ export const wrapReducer = <
           flow(
             evolve({
               history: reduceHistory(storeIndexAction),
-              updates: append<HistoryUpdate<PBT>>(storeIndexAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(storeIndexAction),
             }),
             when(
               () =>
@@ -173,7 +172,7 @@ export const wrapReducer = <
             ),
             evolve({
               history: reduceHistory(rebuildBranchesAction),
-              updates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
             }),
             // current branch is updated
             when(
@@ -201,10 +200,10 @@ export const wrapReducer = <
       const deleteCount = action.payload?.deleteCount;
       return {
         ...uStateWithNewOutput,
-        output:
+        stateUpdates:
           deleteCount === undefined
             ? []
-            : uStateWithNewOutput.output.slice(deleteCount),
+            : uStateWithNewOutput.stateUpdates.slice(deleteCount),
       };
     } else {
       const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
@@ -239,9 +238,11 @@ export const wrapReducer = <
           uStateWithNewOutput,
           evolve({
             history: skipHistory ? identity : reduceHistory(historyUpdate),
+            historyUpdates: skipHistory
+              ? identity
+              : append<HistoryUpdate<PBT>>(historyUpdate),
             state: () => newState,
-            output: skipOutput ? identity : append(originalAction),
-            updates: append<HistoryUpdate<PBT>>(historyUpdate),
+            stateUpdates: skipOutput ? identity : append(originalAction),
           })
         );
       }

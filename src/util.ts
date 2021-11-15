@@ -26,6 +26,8 @@ export const modifyArrayAt = <A>(i: number, fn: Endomorphism<A>) => (
   return clone;
 };
 
+export const append = <A>(end: A) => (start: A[]): A[] => start.concat(end);
+
 // TODO: strict version hasOwnProperty check?
 export const merge = <S extends StringMap | undefined, P extends Partial<S>>(
   partial: P

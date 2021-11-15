@@ -123,7 +123,7 @@ describe('wrapReducer', () => {
         type: 'updateCount',
       },
     ]);
-    expect(uState.output).toStrictEqual<typeof uState.output>([
+    expect(uState.stateUpdates).toStrictEqual<typeof uState.stateUpdates>([
       {
         type: 'addToCount',
         payload: 3,
@@ -155,8 +155,8 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.output).toStrictEqual<typeof uState.output>(
-      prevUState.output.concat([
+    expect(uState.stateUpdates).toStrictEqual<typeof uState.stateUpdates>(
+      prevUState.stateUpdates.concat([
         {
           type: 'updateCount',
           payload: 5,
@@ -196,8 +196,8 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.output).toStrictEqual<typeof uState.output>(
-      prevUState.output.concat([
+    expect(uState.stateUpdates).toStrictEqual<typeof uState.stateUpdates>(
+      prevUState.stateUpdates.concat([
         {
           type: 'addToCount',
           payload: 3,
@@ -237,7 +237,7 @@ describe('wrapReducer', () => {
       payload: 0,
     });
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.output).toBe(prevUState.output);
+    expect(uState.stateUpdates).toBe(prevUState.stateUpdates);
   });
 
   // it('ignores absolute update that leads to referentially equal state', () => {
@@ -280,8 +280,8 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(33);
 
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.output).toStrictEqual(
-      prevUState.output.concat([
+    expect(uState.stateUpdates).toStrictEqual(
+      prevUState.stateUpdates.concat([
         {
           type: 'addToCount',
           payload: 9,
@@ -327,7 +327,7 @@ describe('wrapReducer', () => {
     });
     expect(uState.state.count).toBe(99);
 
-    expect(uState.output).toBe(prevUState.output);
+    expect(uState.stateUpdates).toBe(prevUState.stateUpdates);
     expect(getCurrentIndex(uState.history)).toBe(
       getCurrentIndex(prevUState.history) + 3
     );
