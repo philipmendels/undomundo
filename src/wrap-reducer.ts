@@ -19,8 +19,8 @@ import {
   UOptions,
   MetaAction,
   UActionCreatorsByType,
-  OriginalPayloadByType,
   HistoryUpdate,
+  UndoableActionUnion,
 } from './types/main';
 import { append, evolve, mapRecordWithKey, when } from './util';
 
@@ -206,9 +206,22 @@ export const wrapReducer = <
             : uStateWithNewOutput.stateUpdates.slice(deleteCount),
       };
     } else {
-      const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
-      // TODO: is it safe to just remove 'meta' (what if the original action also had it)?
-      const originalAction = { type, payload };
+      const { type, payload, meta, ...rest } = action as OriginalUActionUnion<
+        PBT
+      >;
+
+      const { skipHistory, skipOutput, ...metaRest } = meta || {};
+
+      const extra = {
+        ...(Object.keys(metaRest).length ? { meta: metaRest } : {}),
+        ...rest,
+      };
+
+      const originalAction = {
+        ...extra,
+        type,
+        payload,
+      } as UndoableActionUnion<PBT>;
 
       const newState = reducer(state, originalAction);
 
@@ -231,6 +244,7 @@ export const wrapReducer = <
               payload,
               meta?.undoValue
             ),
+            extra,
           },
         };
 
@@ -250,7 +264,7 @@ export const wrapReducer = <
   };
 
   const actionCreators = mapRecordWithKey(actionConfigs)<
-    UActionCreatorsByType<OriginalPayloadByType<PBT>>
+    UActionCreatorsByType<PBT>
   >(type => (payload, options) => ({
     type,
     payload,

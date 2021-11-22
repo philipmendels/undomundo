@@ -102,7 +102,9 @@ export const makeAbsolutePartialActionConfig = <PUR>(
         undoValue === undefined ? getValueFromState(state) : undoValue,
         redoValue
       ),
-    makeActionForUndo: ({ type, payload }) => ({
+    makeActionForUndo: ({ type, payload, ...rest }) => ({
+      // by default we include the ...rest (which is PBT[K]['extra'])
+      ...rest,
       type,
       payload: payloadMapping.getUndo(payload),
     }),

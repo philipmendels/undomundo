@@ -23,6 +23,11 @@ type State = {
   count: number;
 };
 
+const extra = {
+  meta: { blaat: 'blaat' },
+  bloop: 'bloop',
+};
+
 type Actions =
   | {
       type: 'addToCount';
@@ -32,13 +37,15 @@ type Actions =
       type: 'subtractFromCount';
       payload: number;
     }
-  | {
+  | ({
       type: 'updateCount';
       payload: number;
-    };
+    } & typeof extra);
 
 type PBT = {
-  updateCount: DefaultPayloadConfig<number>;
+  updateCount: DefaultPayloadConfig<number> & {
+    extra: typeof extra;
+  };
   addToCount: RelativePayloadConfig<number>;
   subtractFromCount: RelativePayloadConfig<number>;
 };
@@ -97,6 +104,7 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(5);
 
     uState = uReducer(uState, {
+      ...extra,
       type: 'updateCount',
       payload: 4,
     });
@@ -133,6 +141,7 @@ describe('wrapReducer', () => {
         payload: 1,
       },
       {
+        ...extra,
         type: 'updateCount',
         payload: 4,
       },
@@ -158,6 +167,7 @@ describe('wrapReducer', () => {
     expect(uState.stateUpdates).toStrictEqual<typeof uState.stateUpdates>(
       prevUState.stateUpdates.concat([
         {
+          ...extra,
           type: 'updateCount',
           payload: 5,
         },
@@ -207,6 +217,7 @@ describe('wrapReducer', () => {
           payload: 1,
         },
         {
+          ...extra,
           type: 'updateCount',
           payload: 4,
         },
@@ -271,9 +282,11 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(11);
 
     uState = uReducer(uState, {
+      ...extra,
       type: 'updateCount',
       payload: 33,
       meta: {
+        ...extra.meta,
         skipHistory: true,
       },
     });
@@ -291,6 +304,7 @@ describe('wrapReducer', () => {
           payload: 2,
         },
         {
+          ...extra,
           type: 'updateCount',
           payload: 33,
         },
@@ -319,9 +333,11 @@ describe('wrapReducer', () => {
     expect(uState.state.count).toBe(28);
 
     uState = uReducer(uState, {
+      ...extra,
       type: 'updateCount',
       payload: 99,
       meta: {
+        ...extra.meta,
         skipOutput: true,
       },
     });

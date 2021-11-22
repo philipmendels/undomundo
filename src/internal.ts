@@ -10,6 +10,8 @@ import {
   UState,
   HistoryUpdate,
   HistoryOptions,
+  UndoableActionUnion,
+  ActionConfig,
 } from './types/main';
 import {
   add1,
@@ -310,9 +312,22 @@ export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
   const { state, history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
-  const { type, payload } = currentBranch.stack[currentIndex];
-  const { makeActionForUndo, updateHistoryOnUndo } = actionConfigs[type];
-  const newAction = makeActionForUndo({ type, payload });
+  const { type, payload, extra } = currentBranch.stack[currentIndex];
+  const config = actionConfigs[type];
+  const { makeActionForUndo, updateHistoryOnUndo } = config;
+
+  let newAction: UndoableActionUnion<PBT> = makeActionForUndo({
+    ...extra,
+    type,
+    payload,
+  });
+
+  if ((config as ActionConfig<any, any, any>).updateStateOnUndo) {
+    // we cannot simply add 'isUndo' to the 'meta' field,
+    // because the original 'meta' field may be a primitive
+    // value.
+    newAction = { ...newAction, undoMundo: { isUndo: true } };
+  }
 
   const historyUpdate: HistoryUpdate<PBT> = {
     type: 'UNDO_WITH_UPDATE',
@@ -323,10 +338,7 @@ export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
     uState,
     evolve({
       history: reduceHistory(historyUpdate),
-      state: reduce({
-        ...newAction,
-        undoMundo: { isUndo: true },
-      }),
+      state: reduce(newAction),
       stateUpdates: append(newAction),
       historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
     })
@@ -342,9 +354,13 @@ export const redo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
 
-  const { type, payload } = currentBranch.stack[currentIndex + 1];
+  const { type, payload, extra } = currentBranch.stack[currentIndex + 1];
   const { getPayloadForRedo, updateHistoryOnRedo } = actionConfigs[type];
-  const newAction = { type, payload: getPayloadForRedo(payload) };
+
+  // There is no way for the user to opt-out from adding 'extra' to the new
+  // action. If this is desired, then we should refactor getPayloadForRedo to
+  // makeActionForRedo.
+  const newAction = { ...extra, type, payload: getPayloadForRedo(payload) };
 
   const historyUpdate: HistoryUpdate<PBT> = {
     type: 'REDO_WITH_UPDATE',

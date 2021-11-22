@@ -7,7 +7,11 @@ import {
   initUState,
 } from '../src/helpers';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
-import { DefaultPayloadConfig, RelativePayloadConfig } from '../src/types/main';
+import {
+  DefaultPayloadConfig,
+  RelativePayloadConfig,
+  UndoableActionUnion,
+} from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
 type State = {
@@ -67,6 +71,16 @@ describe('makeUndoableReducer', () => {
 
     uState = uReducer(uState, undo());
     expect(uState.state.count).toBe(6);
+
+    expect(uState.stateUpdates[uState.stateUpdates.length - 1]).toStrictEqual<
+      UndoableActionUnion<PBT>
+    >({
+      type: 'addToCount_alt',
+      payload: 2,
+      undoMundo: {
+        isUndo: true,
+      },
+    });
 
     uState = uReducer(uState, undo());
     expect(uState.state.count).toBe(3);

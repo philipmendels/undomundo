@@ -6,7 +6,7 @@ export type Updater<A, B> = (a: A) => Endomorphism<B>;
 
 export type ValueOf<T> = T[keyof T];
 
-export type StringMap = Record<string, any>;
+export type StringMap<T = any> = Record<string, T>;
 
 export type Action<T = string, P = any> = {
   type: T;
@@ -24,6 +24,7 @@ export type AssociatedKeysOf<PBT extends PayloadConfigByType, PUR> = ValueOf<
 export type PayloadConfig<PO = any, PH = any> = {
   original: PO;
   history: PH;
+  extra?: StringMap;
 };
 
 export type RelativePayloadConfig<P> = {
@@ -49,19 +50,20 @@ export type ActionUnion<PBT extends StringMap> = ValueOf<
   }
 >;
 
-export type UndoableActionUnion<PBT extends StringMap> = ValueOf<
+export type UndoableActionUnion<PBT extends PayloadConfigByType> = ValueOf<
   {
-    [K in keyof PBT]: Action<K, PBT[K]> & {
-      undoMundo?: { isUndo?: boolean };
-    };
+    [K in keyof PBT]: Action<K, PBT[K]['original']> &
+      PBT[K]['extra'] & {
+        undoMundo?: { isUndo?: boolean };
+      };
   }
 >;
 
-export type UAction<T, P> = Action<T, P> & {
+export type UAction<T, P extends PayloadConfig> = Action<T, P['original']> & {
   meta?: UActionOptions<P>;
 };
 
-export type UActionUnion<PBT extends StringMap> = ValueOf<
+export type UActionUnion<PBT extends PayloadConfigByType> = ValueOf<
   {
     [K in keyof PBT]: UAction<K, PBT[K]>;
   }
@@ -71,13 +73,17 @@ export type OriginalActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
   OriginalPayloadByType<PBT>
 >;
 
-export type HistoryActionUnion<PBT extends PayloadConfigByType> = ActionUnion<
-  HistoryPayloadByType<PBT>
+export type HistoryActionUnion<PBT extends PayloadConfigByType> = ValueOf<
+  {
+    [K in keyof PBT]: Action<K, PBT[K]['history']> & {
+      extra?: PBT[K]['extra'];
+    };
+  }
 >;
 
 export type OriginalUActionUnion<
   PBT extends PayloadConfigByType
-> = UActionUnion<OriginalPayloadByType<PBT>>;
+> = UActionUnion<PBT>;
 
 export type PayloadMapping<PO, PH> = {
   composeUndoRedo: (undo: PO, redo: PO) => PH;
@@ -88,7 +94,9 @@ export type PayloadMapping<PO, PH> = {
 export type ActionConvertor<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = (action: Action<K, PBT[K]['history']>) => OriginalActionUnion<PBT>;
+> = (
+  action: Action<K, PBT[K]['history']> & PBT[K]['extra']
+) => UndoableActionUnion<PBT>;
 
 export type PartialActionConfig<
   S,
@@ -136,19 +144,26 @@ export type UpdatersByType<S, PBT extends StringMap> = {
   [K in keyof PBT]: { undo: Updater<PBT[K], S>; redo: Updater<PBT[K], S> };
 };
 
-export type ActionCreatorsByType<PBT extends StringMap> = {
-  [K in keyof PBT]: (payload: PBT[K]) => Action<K, PBT[K]>;
-};
-
-type UActionOptions<T> = {
-  skipHistory?: boolean;
-  skipOutput?: boolean;
-  undoValue?: T;
-};
-
-export type UActionCreatorsByType<PBT extends StringMap> = {
+export type ActionCreatorsByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: (
-    payload: PBT[K],
+    payload: PBT[K]['original'],
+    extra?: PBT[K]['extra']
+  ) => Action<K, PBT[K]['original']> & PBT[K]['extra'];
+};
+
+type UActionOptions<P extends PayloadConfig> = {
+  skipHistory?: boolean;
+  // TODO: the name 'skipOutput' does not properly reflect the name of 'stateUpdates',
+  // however 'skipStateUpdates' would give the false impression that the state is not
+  // updated. Perhapse use something like 'skipExternalUpdates'?
+  skipOutput?: boolean;
+  undoValue?: P['original'];
+  extra?: P['extra'];
+};
+
+export type UActionCreatorsByType<PBT extends PayloadConfigByType> = {
+  [K in keyof PBT]: (
+    payload: PBT[K]['original'],
     options?: UActionOptions<PBT[K]>
   ) => UAction<K, PBT[K]>;
 };
@@ -156,7 +171,7 @@ export type UActionCreatorsByType<PBT extends StringMap> = {
 export type PayloadHandlersByType<S, PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: (
     p: PBT[K]['original'],
-    options?: UActionOptions<PBT[K]['original']>
+    options?: UActionOptions<PBT[K]>
   ) => S;
 };
 
@@ -188,7 +203,7 @@ export type UState<
 > = {
   state: S;
   history: History<PBT, CustomBranchData>;
-  stateUpdates: OriginalActionUnion<PBT>[];
+  stateUpdates: UndoableActionUnion<PBT>[];
   historyUpdates: HistoryUpdate<PBT>[];
 };
 
@@ -240,7 +255,7 @@ export type Reducer<S, A> = (state: S, action: A) => S;
 
 export type ReducerOf<S, PBT extends PayloadConfigByType> = Reducer<
   S,
-  UndoableActionUnion<OriginalPayloadByType<PBT>>
+  UndoableActionUnion<PBT>
 >;
 
 export type UReducerAction<PBT extends PayloadConfigByType> =

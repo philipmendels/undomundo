@@ -25,6 +25,16 @@ type PBT = {
   multiplyCount: RelativePayloadConfig<number>;
 };
 
+// TODO: add test for syncing updateStateOnUndo
+// addToCount_alt: {
+//   ...makeRelativeActionConfig({
+//     updateState: amount => evolve({ count: add(amount) }),
+//     makeActionForUndo: identity,
+//   }),
+//   // separate updater for undo
+//   updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
+// },
+
 const actionConfigs: ActionConfigByType<State, PBT> = {
   addToCount: makeRelativeActionConfig({
     makeActionForUndo: evolve({ payload: negate }),

@@ -28,7 +28,7 @@ export const makeUndoableReducer = <
   options,
   initBranchData,
 }: MakeUndoableReducerReducerProps<S, PBT, CBD>) => {
-  const { reducer } = makeReducer<S, OriginalPayloadByType<PBT>>(
+  const { reducer } = makeReducer<S, PBT>(
     mapRecord(actionConfigs)<UpdatersByType<S, OriginalPayloadByType<PBT>>>(
       config => ({
         undo: config.updateStateOnUndo ?? config.updateState,
@@ -38,6 +38,7 @@ export const makeUndoableReducer = <
   );
   return wrapReducer<S, PBT, CBD>({
     reducer,
+    // pass the full actionConfig (not partial), because inside wrapReducer we still check if updateStateOnUndo is present
     actionConfigs,
     options,
     initBranchData,

@@ -2,12 +2,13 @@ import { identity, pipe, Predicate } from 'fp-ts/function';
 import { mapWithIndex } from 'fp-ts/Record';
 import {
   StringMap,
+  OriginalPayloadByType,
   UpdatersByType,
-  Reducer,
   ActionCreatorsByType,
   ValueOf,
   Endomorphism,
-  UndoableActionUnion,
+  PayloadConfigByType,
+  ReducerOf,
 } from './types/main';
 
 export const add = (a: number) => (b: number) => a + b;
@@ -100,16 +101,16 @@ export const mapRecordWithKey = <A extends StringMap>(a: A) => <
   return b;
 };
 
-export const makeReducer = <S, PBT extends StringMap>(
-  stateUpdaters: UpdatersByType<S, PBT>
+export const makeReducer = <S, PBT extends PayloadConfigByType>(
+  stateUpdaters: UpdatersByType<S, OriginalPayloadByType<PBT>>
 ) => ({
   reducer: ((state, { payload, type, undoMundo }) => {
     const updater = undoMundo?.isUndo
       ? stateUpdaters[type].undo
       : stateUpdaters[type].redo;
     return updater ? updater(payload)(state) : state;
-  }) as Reducer<S, UndoableActionUnion<PBT>>,
+  }) as ReducerOf<S, PBT>,
   actionCreators: mapRecordWithKey(stateUpdaters)<ActionCreatorsByType<PBT>>(
-    type => payload => ({ payload, type })
+    type => (payload, extra) => ({ ...extra, payload, type })
   ),
 });
