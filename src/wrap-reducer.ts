@@ -223,6 +223,12 @@ export const wrapReducer = <
         payload,
       } as UndoableActionUnion<PBT>;
 
+      const config = actionConfigs[type];
+      const newPayload = config?.initPayloadInHistory(state)(
+        payload,
+        meta?.undoValue
+      );
+
       const newState = reducer(state, originalAction);
 
       // TODO: what about deep equality?
@@ -230,7 +236,6 @@ export const wrapReducer = <
         // or return uState ???
         return uStateWithNewOutput;
       } else {
-        const config = actionConfigs[type];
         const skipHistory = !config || meta?.skipHistory;
         // TODO: is check for !config necessary for skipping output?
         // If used with Redux this reducer may receive unrelated actions.
@@ -240,10 +245,7 @@ export const wrapReducer = <
           type: 'ADD_TO_HISTORY',
           payload: {
             type,
-            payload: config.initPayloadInHistory(state)(
-              payload,
-              meta?.undoValue
-            ),
+            payload: newPayload,
             extra,
           },
         };
