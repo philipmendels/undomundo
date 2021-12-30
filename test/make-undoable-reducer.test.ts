@@ -1,16 +1,11 @@
 import { negate } from 'fp-ts-std/Number';
 import { identity } from 'fp-ts/function';
 import { redo, undo } from '../src/action-creators';
-import {
-  makeDefaultActionConfig,
-  makeRelativeActionConfig,
-  initHistory,
-} from '../src/helpers';
+import { initUState } from '../src/helpers';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
 import {
-  DefaultPayloadConfig,
+  AbsolutePayloadConfig,
   RelativePayloadConfig,
-  UState,
 } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
@@ -19,44 +14,38 @@ type State = {
 };
 
 type PBT = {
-  updateCount: DefaultPayloadConfig<number>;
+  updateCount: AbsolutePayloadConfig<number>;
   addToCount: RelativePayloadConfig<number>;
   addToCount_alt: RelativePayloadConfig<number>;
 };
 
 const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
   actionConfigs: {
-    addToCount: makeRelativeActionConfig({
+    addToCount: {
       // payload conversion for undo:
       updateState: amount => evolve({ count: add(amount) }),
       makeActionForUndo: evolve({ payload: negate }),
-    }),
+    },
     addToCount_alt: {
-      ...makeRelativeActionConfig({
-        updateState: amount => evolve({ count: add(amount) }),
-        makeActionForUndo: identity,
-      }),
+      updateState: amount => evolve({ count: add(amount) }),
+      makeActionForUndo: identity,
+
       // separate updater for undo
       updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
     },
-    updateCount: makeDefaultActionConfig({
+    updateCount: {
       updateState: count => merge({ count }),
-      getValueFromState: state => state.count,
-      updateHistory: count => _ => count,
-    }),
+      updateHistory: state => _ => state.count,
+    },
   },
 });
 
 const { addToCount, addToCount_alt, updateCount } = actionCreators;
 
 describe('makeUndoableReducer', () => {
-  let uState: UState<State, PBT> = {
-    output: [],
-    history: initHistory(),
-    state: {
-      count: 3,
-    },
-  };
+  let uState = initUState<State, PBT>({
+    count: 3,
+  });
 
   it('update works', () => {
     uState = uReducer(uState, addToCount(3));
@@ -75,6 +64,16 @@ describe('makeUndoableReducer', () => {
 
     uState = uReducer(uState, undo());
     expect(uState.state.count).toBe(6);
+
+    // expect(uState.stateUpdates[uState.stateUpdates.length - 1]).toStrictEqual<
+    //   StateActionUnion<PBT>
+    // >({
+    //   type: 'addToCount_alt',
+    //   payload: 2,
+    //   undomundo: {
+    //     isUndo: true,
+    //   },
+    // });
 
     uState = uReducer(uState, undo());
     expect(uState.state.count).toBe(3);

@@ -1,6 +1,6 @@
-import { makeDefaultActionConfig, initHistory } from '../src/helpers';
+import { initUState } from '../src/helpers';
 import { makeUndoableState, OnChangeEvent } from '../src/make-undoable-state';
-import { DefaultPayloadConfig, UState } from '../src/types/main';
+import { AbsolutePayloadConfig, UActionUnion } from '../src/types/main';
 import { merge } from '../src/util';
 
 type State = {
@@ -8,18 +8,14 @@ type State = {
 };
 
 type PBT = {
-  updateCount: DefaultPayloadConfig<number>;
+  updateCount: AbsolutePayloadConfig<number>;
 };
 
 type CallbackParams = OnChangeEvent<State, PBT, {}>[];
 
-let newUState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 2,
-  },
-};
+let newUState = initUState<State, PBT>({
+  count: 2,
+});
 
 const onChange = jest.fn<void, CallbackParams>();
 
@@ -31,11 +27,10 @@ const {
 } = makeUndoableState<State, PBT>({
   initialUState: newUState,
   actionConfigs: {
-    updateCount: makeDefaultActionConfig({
+    updateCount: {
       updateState: count => merge({ count }),
-      getValueFromState: state => state.count,
-      updateHistory: count => _ => count,
-    }),
+      updateHistory: state => _ => state.count,
+    },
   },
   onChange,
 });
@@ -51,11 +46,16 @@ describe('makeUndoableState', () => {
     newUState = updateCount(4);
     expect(newUState.state.count).toBe(4);
     expectGetCurrentStateEquals();
-    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
-      action: { type: 'updateCount', payload: 4 },
-      newUState,
-      oldUState,
-    });
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+    expect(lastCall.actions[0].type).toBe('updateCount');
+    expect((lastCall.actions[0] as UActionUnion<PBT>).payload).toBe(4);
+    expect(lastCall.newUState).toBe(newUState);
+    expect(lastCall.oldUState).toBe(oldUState);
+    // expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
+    //   action: { type: 'updateCount', payload: 4 },
+    //   newUState,
+    //   oldUState,
+    // });
   });
 
   it('undo works', () => {
@@ -64,7 +64,7 @@ describe('makeUndoableState', () => {
     expect(newUState.state.count).toBe(2);
     expectGetCurrentStateEquals();
     expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
-      action: { type: 'undo' },
+      actions: [{ type: 'undo' }],
       newUState,
       oldUState,
     });
@@ -76,7 +76,7 @@ describe('makeUndoableState', () => {
     expect(newUState.state.count).toBe(4);
     expectGetCurrentStateEquals();
     expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
-      action: { type: 'redo' },
+      actions: [{ type: 'redo' }],
       newUState,
       oldUState,
     });
@@ -88,10 +88,11 @@ describe('makeUndoableState', () => {
     newUState = updateCount(33, { skipHistory: true });
     expect(newUState.state.count).toBe(33);
     expect(newUState.history).toBe(prevHist);
-    expect(onChange).toHaveBeenLastCalledWith<CallbackParams>({
-      action: { type: 'updateCount', payload: 33, meta: { skipHistory: true } },
-      newUState,
-      oldUState,
-    });
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+    expect(lastCall.actions[0].type).toBe('updateCount');
+    expect((lastCall.actions[0] as UActionUnion<PBT>).payload).toBe(33);
+    expect(
+      (lastCall.actions[0] as UActionUnion<PBT>).undomundo.skipHistory
+    ).toBe(true);
   });
 });

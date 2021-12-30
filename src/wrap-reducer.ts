@@ -1,110 +1,159 @@
-import { append } from 'fp-ts/Array';
-import { flow, identity, pipe } from 'fp-ts/function';
+import { flow, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
-import { canRedo, canUndo } from './helpers';
+import { canRedo, canUndo, getAction } from './helpers';
 import {
-  addHistoryItem,
   getBranchSwitchProps,
   getCurrentBranch,
+  isAbsoluteConfig,
+  isSyncAction,
   redo,
-  storeLastGlobalIndex,
   timeTravelCurrentBranch,
   undo,
-  updatePath,
 } from './internal';
-import { CustomData, History } from './types/history';
+import { makeHistoryReducer } from './make-history-reducer';
+import { CustomData, History, HistoryItemUnion } from './types/history';
 import {
   PayloadConfigByType,
   PartialActionConfigByType,
-  OriginalUActionUnion,
   UReducerOf,
   ReducerOf,
-  OriginalActionUnion,
   UOptions,
   MetaAction,
   UActionCreatorsByType,
-  OriginalPayloadByType,
+  HistoryUpdate,
+  StateActionUnion,
+  UActionUnion,
+  SyncActionUnion,
+  UActionCreator,
+  StateUpdate,
 } from './types/main';
-import { evolve, mapRecordWithKey, when } from './util';
+import { append, evolve, mapRecordWithKey, merge, when } from './util';
+
+const storeIndexAction: HistoryUpdate<any> = { type: 'STORE_INDEX' };
 
 export type WrapReducerProps<
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = {},
+  NUA = never
 > = {
-  reducer: ReducerOf<S, PBT>;
+  reducer: ReducerOf<S, PBT, NUA>;
   actionConfigs: PartialActionConfigByType<S, PBT>;
-  options?: UOptions;
+  options?: UOptions<S>;
   initBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
 export const wrapReducer = <
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = {},
+  NUA = never
 >({
   reducer,
   actionConfigs,
-  options,
-  initBranchData = () => ({} as CBD),
-}: WrapReducerProps<S, PBT, CBD>) => {
-  const mergedOptions: Required<UOptions> = {
-    useBranchingHistory: false,
-    maxHistoryLength: Infinity,
-    keepOutput: false,
-    ...options,
-  };
+  options = {},
+  initBranchData,
+}: WrapReducerProps<S, PBT, CBD, NUA>) => {
+  const {
+    keepStateUpdates = false,
+    keepHistoryUpdates = false,
+    disableUpdateHistory = false,
+    isStateEqual = () => false,
+    ...historyOptions
+  } = options;
 
-  const reduce = (action: OriginalActionUnion<PBT>) => (state: S) =>
+  const historyReducer = makeHistoryReducer<PBT, CBD>({
+    options: historyOptions,
+    initBranchData,
+  });
+
+  const reduceHistory = (action: HistoryUpdate<PBT>) => (
+    history: History<PBT, CBD>
+  ) => historyReducer(history, action);
+
+  const reduce = (action: StateActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
 
-  const uReducer: UReducerOf<S, PBT, CBD> = (uState, uReducerAction) => {
-    const { state, history } = uState;
-    const currentBranch = getCurrentBranch(history);
+  const uReducer: UReducerOf<S, PBT, CBD, NUA> = (uState, uReducerAction) => {
+    const uStateWithNewOutput = pipe(
+      uState,
+      when(
+        () => !keepStateUpdates && uState.stateUpdates.length > 0,
+        merge({ stateUpdates: [] })
+      ),
+      when(
+        () => !keepHistoryUpdates && uState.historyUpdates.length > 0,
+        merge({ historyUpdates: [] })
+      )
+    );
 
-    const uStateWithNewOutput: typeof uState =
-      mergedOptions.keepOutput || uState.output.length === 0
-        ? uState
-        : { state, history, output: [] };
+    const { state, history } = uStateWithNewOutput;
+    const currentBranch = getCurrentBranch(history);
 
     const action = uReducerAction as MetaAction;
 
     if (action.type === 'undo') {
       return pipe(
         uStateWithNewOutput,
-        when(() => canUndo(history), undo(reduce, actionConfigs))
+        when(
+          () => canUndo(history),
+          undo(reduce, reduceHistory, actionConfigs, disableUpdateHistory)
+        )
       );
     } else if (action.type === 'redo') {
       return pipe(
         uStateWithNewOutput,
-        when(() => canRedo(history), redo(reduce, actionConfigs))
+        when(
+          () => canRedo(history),
+          redo(reduce, reduceHistory, actionConfigs, disableUpdateHistory)
+        )
       );
     } else if (action.type === 'timeTravel') {
       const { indexOnBranch, branchId = currentBranch.id } = action.payload;
       if (branchId === currentBranch.id) {
         return timeTravelCurrentBranch(
           reduce,
+          reduceHistory,
           actionConfigs,
+          disableUpdateHistory,
           indexOnBranch
         )(uStateWithNewOutput);
       } else {
-        const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        const { caIndex, pathToTarget, parentIndex } = getBranchSwitchProps(
           history,
           branchId
         );
+        const rebuildBranchesAction: HistoryUpdate<PBT> = {
+          type: 'REBUILD_BRANCHES',
+          payload: pathToTarget,
+        };
+
         return pipe(
           uStateWithNewOutput,
           flow(
-            evolve({ history: storeLastGlobalIndex() }),
+            evolve({
+              history: reduceHistory(storeIndexAction),
+            }),
             when(
               () => caIndex < history.currentIndex,
-              timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+              timeTravelCurrentBranch(
+                reduce,
+                reduceHistory,
+                actionConfigs,
+                disableUpdateHistory,
+                caIndex
+              )
             ),
-            evolve({ history: updatePath(path.map(b => b.id)) }),
+            evolve({
+              history: reduceHistory(rebuildBranchesAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
+            }),
             // current branch is updated
             timeTravelCurrentBranch(
               reduce,
+              reduceHistory,
               actionConfigs,
+              disableUpdateHistory,
               parentIndex + 1 + indexOnBranch
             )
           )
@@ -122,29 +171,47 @@ export const wrapReducer = <
         );
       } else {
         const targetBranch = history.branches[branchId];
-        const { caIndex, path, parentIndex } = getBranchSwitchProps(
+        const { caIndex, pathToTarget, parentIndex } = getBranchSwitchProps(
           history,
           branchId
         );
+
+        const rebuildBranchesAction: HistoryUpdate<PBT> = {
+          type: 'REBUILD_BRANCHES',
+          payload: pathToTarget,
+        };
+
         return pipe(
           uStateWithNewOutput,
           flow(
-            evolve({ history: storeLastGlobalIndex() }),
+            evolve({
+              history: reduceHistory(storeIndexAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(storeIndexAction),
+            }),
             when(
               () =>
                 caIndex < history.currentIndex ||
                 travelTo === 'LAST_COMMON_ACTION',
-              timeTravelCurrentBranch(reduce, actionConfigs, caIndex)
+              timeTravelCurrentBranch(
+                reduce,
+                reduceHistory,
+                actionConfigs,
+                disableUpdateHistory,
+                caIndex
+              )
             ),
             evolve({
-              history: updatePath(path.map(b => b.id)),
+              history: reduceHistory(rebuildBranchesAction),
+              historyUpdates: append<HistoryUpdate<PBT>>(rebuildBranchesAction),
             }),
             // current branch is updated
             when(
               () => travelTo === 'LAST_KNOWN_POSITION_ON_BRANCH',
               timeTravelCurrentBranch(
                 reduce,
+                reduceHistory,
                 actionConfigs,
+                disableUpdateHistory,
                 targetBranch.lastGlobalIndex!
               )
             ),
@@ -152,76 +219,170 @@ export const wrapReducer = <
               () => travelTo === 'HEAD_OF_BRANCH',
               timeTravelCurrentBranch(
                 reduce,
+                reduceHistory,
                 actionConfigs,
+                disableUpdateHistory,
                 parentIndex + targetBranch.stack.length
               )
             )
           )
         );
       }
-    } else if (action.type === 'clearOutput') {
-      const deleteCount = action.payload?.deleteCount;
+    } else if (action.type === 'clearStateUpdates') {
+      const deleteCount = action.payload;
       return {
         ...uStateWithNewOutput,
-        output:
+        stateUpdates:
           deleteCount === undefined
             ? []
-            : uStateWithNewOutput.output.slice(deleteCount),
+            : uStateWithNewOutput.stateUpdates.slice(deleteCount),
+      };
+    } else if (action.type === 'clearHistoryUpdates') {
+      const deleteCount = action.payload;
+      return {
+        ...uStateWithNewOutput,
+        historyUpdates:
+          deleteCount === undefined
+            ? []
+            : uStateWithNewOutput.historyUpdates.slice(deleteCount),
       };
     } else {
-      const { type, payload, meta } = action as OriginalUActionUnion<PBT>;
-      // TODO: is it safe to just remove 'meta' (what if the original action also had it)?
-      const originalAction = { type, payload };
+      // The action can have any shape here, because in Redux every action
+      // hits every reducer.
 
-      const newState = reducer(state, originalAction);
+      // meta actions (e.g. 'undo') are alread handled above.
 
-      // TODO: what about deep equality?
-      if (newState === state) {
-        // or return uState ???
-        return uStateWithNewOutput;
-      } else {
-        const config = actionConfigs[type];
-        const skipHistory = !config || meta?.skipHistory;
-        // TODO: is check for !config necessary for skipping output?
-        // If used with Redux this reducer may receive unrelated actions.
-        const skipOutput = !config || meta?.skipOutput;
+      const actionCasted = action as UActionUnion<PBT> | SyncActionUnion<PBT>;
 
+      if (isSyncAction(actionCasted)) {
+        const { type, payload, undomundo, ...extra } = actionCasted;
+        const originalAction: StateActionUnion<PBT> = {
+          ...extra,
+          type,
+          payload,
+        };
+        const { isUndo } = undomundo;
+        if (isUndo) {
+          originalAction.undomundo = {
+            isUndo,
+          };
+        }
         return pipe(
+          // should the updates be cleared when the action isSynchronizing?
           uStateWithNewOutput,
           evolve({
-            history: skipHistory
-              ? identity
-              : addHistoryItem(
-                  {
-                    type,
-                    payload: config.initPayloadInHistory(state)(
-                      payload,
-                      meta?.undoValue
-                    ),
-                    id: v4(),
-                    created: new Date(),
-                  },
-                  mergedOptions,
-                  initBranchData
-                ),
-            state: () => newState,
-            output: skipOutput ? identity : append(originalAction),
+            state: reduce(originalAction),
           })
         );
+      } else {
+        const { type, payload, undomundo } = actionCasted;
+        const config = actionConfigs[type];
+        if (!config || !undomundo) {
+          return pipe(
+            // should the updates be cleared when the action is unknown?
+            uStateWithNewOutput,
+            evolve({
+              // we don't know anything about the
+              // action, hence 'any'
+              state: reduce(actionCasted as any),
+            })
+          );
+        } else {
+          const { extra } = undomundo;
+          const originalAction: StateActionUnion<PBT> = {
+            ...extra,
+            type,
+            payload,
+          };
+
+          const { created, id, skipState, skipHistory } = undomundo;
+
+          const newState = skipState ? state : reducer(state, originalAction);
+
+          if (!skipState && isStateEqual(newState, state)) {
+            return uStateWithNewOutput;
+          } else {
+            const historyItem = {
+              type,
+              created,
+              id,
+              payload: isAbsoluteConfig(config)
+                ? {
+                    undo: undomundo.hasOwnProperty('undoValue')
+                      ? undomundo.undoValue
+                      : (config.initUndoValue || config.updateHistory)(state)(
+                          payload
+                        ),
+                    redo: payload,
+                  }
+                : payload,
+              ...(extra === undefined ? {} : { extra }),
+            } as HistoryItemUnion<PBT>;
+
+            let newUState = pipe(
+              uStateWithNewOutput,
+              evolve({
+                state: () => newState,
+                stateUpdates: append<StateUpdate<PBT>>({
+                  action: historyItem,
+                  direction: 'redo',
+                  // skipHistory is passed on so that the update
+                  // can be filtered out when syncing to other
+                  // clients, or when deriving a version history
+                  skipHistory,
+                  // skipState is passed on so that the update
+                  // can be filtered out for internal actions (non sync)
+                  skipState,
+                }),
+              })
+            );
+
+            if (!skipHistory) {
+              const historyUpdate: HistoryUpdate<PBT> = {
+                type: 'ADD_TO_HISTORY',
+                payload: historyItem,
+              };
+
+              newUState = pipe(
+                newUState,
+                evolve({
+                  history: reduceHistory(historyUpdate),
+                  historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
+                })
+              );
+            }
+
+            return newUState;
+          }
+        }
       }
     }
   };
 
   const actionCreators = mapRecordWithKey(actionConfigs)<
-    UActionCreatorsByType<OriginalPayloadByType<PBT>>
-  >(type => (payload, options) => ({
-    type,
-    payload,
-    ...(options && { meta: options }),
-  }));
+    UActionCreatorsByType<PBT>
+  >(
+    type =>
+      ((payload, options) => {
+        return {
+          type,
+          payload,
+          undomundo: {
+            id: v4(),
+            created: new Date().toISOString(),
+            ...options,
+          },
+        };
+      }) as UActionCreator<string, any>
+  );
+
+  const getActionFromStateUpdate = getAction(actionConfigs);
 
   return {
     uReducer,
+    stateReducer: reducer,
+    historyReducer,
     actionCreators,
+    getActionFromStateUpdate,
   };
 };

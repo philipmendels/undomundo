@@ -1,30 +1,36 @@
 import { negate } from 'fp-ts-std/Number';
 import { pipe } from 'fp-ts/lib/function';
-import { wrapReducer } from '../src';
-import {
-  makeDefaultPartialActionConfig,
-  makeRelativePartialActionConfig,
-  initHistory,
-} from '../src/helpers';
+import { HistoryActionUnion, wrapReducer } from '../src';
+import { initUState } from '../src/helpers';
 import {
   getCurrentBranch,
   getCurrentBranchActions,
   getCurrentIndex,
 } from '../src/internal';
 import {
-  DefaultPayloadConfig,
   Reducer,
+  AbsolutePayloadConfig,
   RelativePayloadConfig,
-  HistoryActionUnion,
-  UState,
+  StateActionUnion,
 } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
 type State = {
   count: number;
+  someNonUndoableState: string;
+};
+
+const extra = {
+  bloop: 'bloop',
+};
+
+type NUA = {
+  type: 'someNonUndoableAction';
+  payload: string;
 };
 
 type Actions =
+  | NUA
   | {
       type: 'addToCount';
       payload: number;
@@ -33,24 +39,23 @@ type Actions =
       type: 'subtractFromCount';
       payload: number;
     }
-  | {
+  | ({
       type: 'updateCount';
       payload: number;
-    };
+    } & typeof extra);
 
 type PBT = {
-  updateCount: DefaultPayloadConfig<number>;
+  updateCount: AbsolutePayloadConfig<number> & {
+    extra: typeof extra;
+  };
   addToCount: RelativePayloadConfig<number>;
   subtractFromCount: RelativePayloadConfig<number>;
 };
 
-let uState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 3,
-  },
-};
+let uState = initUState<State, PBT>({
+  count: 3,
+  someNonUndoableState: 'a',
+});
 
 const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'addToCount') {
@@ -65,46 +70,59 @@ const reducer: Reducer<State, Actions> = (state, action) => {
   if (action.type === 'updateCount') {
     return pipe(state, merge({ count: action.payload }));
   }
+  if (action.type === 'someNonUndoableAction') {
+    return pipe(state, merge({ someNonUndoableState: action.payload }));
+  }
   return state;
 };
 
-const { uReducer } = wrapReducer<State, PBT>({
+const { uReducer, actionCreators, getActionFromStateUpdate } = wrapReducer<
+  State,
+  PBT,
+  {},
+  NUA
+>({
   reducer,
   actionConfigs: {
-    addToCount: makeRelativePartialActionConfig({
+    addToCount: {
       // payload conversion:
       makeActionForUndo: evolve({ payload: negate }),
-    }),
-    subtractFromCount: makeRelativePartialActionConfig({
+    },
+    subtractFromCount: {
       // type conversion:
       makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
-    }),
-    updateCount: makeDefaultPartialActionConfig({
-      getValueFromState: state => state.count,
-      updateHistory: value => _ => value,
-    }),
+    },
+    updateCount: {
+      updateHistory: state => _ => state.count,
+    },
   },
-  options: { keepOutput: true },
+  options: {
+    keepStateUpdates: true,
+    isStateEqual: (current, prev) => current === prev,
+  },
 });
 
+const { addToCount, updateCount, subtractFromCount } = actionCreators;
+
+const convert = getActionFromStateUpdate({ isSynchronizing: false });
+
 describe('wrapReducer', () => {
-  it('update works', () => {
+  it('nonUndoableAction works', () => {
     uState = uReducer(uState, {
-      type: 'addToCount',
-      payload: 3,
+      type: 'someNonUndoableAction',
+      payload: 'b',
     });
+    expect(uState.state.someNonUndoableState).toBe('b');
+  });
+
+  it('update works', () => {
+    uState = uReducer(uState, addToCount(3));
     expect(uState.state.count).toBe(6);
 
-    uState = uReducer(uState, {
-      type: 'subtractFromCount',
-      payload: 1,
-    });
+    uState = uReducer(uState, subtractFromCount(1));
     expect(uState.state.count).toBe(5);
 
-    uState = uReducer(uState, {
-      type: 'updateCount',
-      payload: 4,
-    });
+    uState = uReducer(uState, updateCount(4, { extra }));
 
     expect(uState.state.count).toBe(4);
 
@@ -121,14 +139,14 @@ describe('wrapReducer', () => {
         type: 'subtractFromCount',
       },
       {
-        payload: {
-          undo: 5,
-          redo: 4,
-        },
+        payload: { undo: 5, redo: 4 },
         type: 'updateCount',
+        extra,
       },
     ]);
-    expect(uState.output).toStrictEqual<typeof uState.output>([
+    expect(uState.stateUpdates.map(convert)).toStrictEqual<
+      StateActionUnion<PBT>[]
+    >([
       {
         type: 'addToCount',
         payload: 3,
@@ -138,6 +156,7 @@ describe('wrapReducer', () => {
         payload: 1,
       },
       {
+        ...extra,
         type: 'updateCount',
         payload: 4,
       },
@@ -160,9 +179,12 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.output).toStrictEqual<typeof uState.output>(
-      prevUState.output.concat([
+    expect(uState.stateUpdates.map(convert)).toStrictEqual<
+      StateActionUnion<PBT>[]
+    >(
+      prevUState.stateUpdates.map(convert).concat([
         {
+          ...extra,
           type: 'updateCount',
           payload: 5,
         },
@@ -182,7 +204,8 @@ describe('wrapReducer', () => {
   it('ignores undo if no items to undo', () => {
     const prevUState = uState;
     uState = uReducer(uState, { type: 'undo' });
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('redo works', () => {
@@ -200,8 +223,10 @@ describe('wrapReducer', () => {
     expect(getCurrentBranch(uState.history)).toStrictEqual(
       getCurrentBranch(prevUState.history)
     );
-    expect(uState.output).toStrictEqual<typeof uState.output>(
-      prevUState.output.concat([
+    expect(uState.stateUpdates.map(convert)).toStrictEqual<
+      StateActionUnion<PBT>[]
+    >(
+      prevUState.stateUpdates.map(convert).concat([
         {
           type: 'addToCount',
           payload: 3,
@@ -211,6 +236,7 @@ describe('wrapReducer', () => {
           payload: 1,
         },
         {
+          ...extra,
           type: 'updateCount',
           payload: 4,
         },
@@ -221,7 +247,8 @@ describe('wrapReducer', () => {
   it('ignores redo if no items to redo', () => {
     const prevUState = uState;
     uState = uReducer(uState, { type: 'redo' });
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('ignores unknown action', () => {
@@ -229,17 +256,15 @@ describe('wrapReducer', () => {
     uState = uReducer(uState, {
       type: 'some-unknown-type',
     } as any);
-    expect(uState).toBe(prevUState);
+    expect(uState.state).toBe(prevUState.state);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('ignores update that leads to referentially equal state', () => {
     const prevUState = uState;
-    uState = uReducer(uState, {
-      type: 'addToCount',
-      payload: 0,
-    });
+    uState = uReducer(uState, addToCount(0));
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.output).toBe(prevUState.output);
+    expect(uState.stateUpdates).toBe(prevUState.stateUpdates);
   });
 
   // it('ignores absolute update that leads to referentially equal state', () => {
@@ -254,36 +279,20 @@ describe('wrapReducer', () => {
 
   it('skip history works', () => {
     const prevUState = uState;
-    uState = uReducer(uState, {
-      type: 'addToCount',
-      payload: 9,
-      meta: {
-        skipHistory: true,
-      },
-    });
+    uState = uReducer(uState, addToCount(9, { skipHistory: true }));
     expect(uState.state.count).toBe(13);
 
-    uState = uReducer(uState, {
-      type: 'subtractFromCount',
-      payload: 2,
-      meta: {
-        skipHistory: true,
-      },
-    });
+    uState = uReducer(uState, subtractFromCount(2, { skipHistory: true }));
     expect(uState.state.count).toBe(11);
 
-    uState = uReducer(uState, {
-      type: 'updateCount',
-      payload: 33,
-      meta: {
-        skipHistory: true,
-      },
-    });
+    uState = uReducer(uState, updateCount(33, { extra, skipHistory: true }));
     expect(uState.state.count).toBe(33);
 
     expect(uState.history).toBe(prevUState.history);
-    expect(uState.output).toStrictEqual(
-      prevUState.output.concat([
+    expect(uState.stateUpdates.map(convert)).toStrictEqual<
+      StateActionUnion<PBT>[]
+    >(
+      prevUState.stateUpdates.map(convert).concat([
         {
           type: 'addToCount',
           payload: 9,
@@ -293,6 +302,7 @@ describe('wrapReducer', () => {
           payload: 2,
         },
         {
+          ...extra,
           type: 'updateCount',
           payload: 33,
         },
@@ -300,86 +310,51 @@ describe('wrapReducer', () => {
     );
   });
 
-  it('skip output works', () => {
+  it('isSynchronizing works', () => {
     const prevUState = uState;
     uState = uReducer(uState, {
       type: 'addToCount',
       payload: 2,
-      meta: {
-        skipOutput: true,
-      },
+      undomundo: { isSynchronizing: true },
     });
     expect(uState.state.count).toBe(35);
 
     uState = uReducer(uState, {
       type: 'subtractFromCount',
       payload: 7,
-      meta: {
-        skipOutput: true,
-      },
+      undomundo: { isSynchronizing: true },
     });
     expect(uState.state.count).toBe(28);
 
     uState = uReducer(uState, {
+      ...extra,
       type: 'updateCount',
       payload: 99,
-      meta: {
-        skipOutput: true,
-      },
+      undomundo: { isSynchronizing: true },
     });
     expect(uState.state.count).toBe(99);
 
-    expect(uState.output).toBe(prevUState.output);
-    expect(getCurrentIndex(uState.history)).toBe(
-      getCurrentIndex(prevUState.history) + 3
-    );
-    expect(getCurrentBranchActions(uState.history)).toStrictEqual<
-      HistoryActionUnion<PBT>[]
-    >(
-      getCurrentBranchActions(prevUState.history).concat([
-        {
-          payload: 2,
-          type: 'addToCount',
-        },
-        {
-          payload: 7,
-          type: 'subtractFromCount',
-        },
-        {
-          payload: {
-            undo: 28,
-            redo: 99,
-          },
-          type: 'updateCount',
-        },
-      ])
-    );
+    expect(uState.stateUpdates).toStrictEqual(prevUState.stateUpdates);
+    expect(uState.historyUpdates).toStrictEqual(prevUState.historyUpdates);
+    expect(uState.history).toBe(prevUState.history);
   });
 
   it('history rewrite works on undo', () => {
-    uState = {
-      output: [],
-      history: initHistory(),
-      state: {
-        count: 2,
-      },
-    };
-
-    uState = uReducer(uState, {
-      type: 'updateCount',
-      payload: 4,
+    uState = initUState<State, PBT>({
+      count: 2,
+      someNonUndoableState: 'a',
     });
 
-    uState = uReducer(uState, {
-      type: 'addToCount',
-      payload: 3,
-    });
+    uState = uReducer(uState, updateCount(4, { extra }));
+
+    uState = uReducer(uState, addToCount(3));
 
     // external update of state:
     uState = uReducer(uState, {
       type: 'updateCount',
       payload: 9,
-      meta: { skipOutput: true, skipHistory: true },
+      undomundo: { isSynchronizing: true },
+      bloop: 'a',
     });
 
     expect(getCurrentIndex(uState.history)).toBe(1);
@@ -387,11 +362,9 @@ describe('wrapReducer', () => {
       HistoryActionUnion<PBT>[]
     >([
       {
-        payload: {
-          undo: 2,
-          redo: 4,
-        },
+        payload: { undo: 2, redo: 4 },
         type: 'updateCount',
+        extra,
       },
       {
         payload: 3,
@@ -416,6 +389,7 @@ describe('wrapReducer', () => {
           redo: 6, // rewritten
         },
         type: 'updateCount',
+        extra,
       },
       {
         payload: 3,
@@ -429,7 +403,10 @@ describe('wrapReducer', () => {
     uState = uReducer(uState, {
       type: 'updateCount',
       payload: -4,
-      meta: { skipOutput: true, skipHistory: true },
+      bloop: 'c',
+      undomundo: {
+        isSynchronizing: true,
+      },
     });
 
     uState = uReducer(uState, { type: 'redo' });
@@ -448,6 +425,7 @@ describe('wrapReducer', () => {
           redo: 6,
         },
         type: 'updateCount',
+        extra,
       },
       {
         payload: 3,

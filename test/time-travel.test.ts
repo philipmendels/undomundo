@@ -1,11 +1,11 @@
 import { negate } from 'fp-ts-std/Number';
-import { makeRelativeActionConfig, initHistory } from '../src/helpers';
+import { initUState } from '../src/helpers';
 import { getBranchActions } from '../src/internal';
 import {
   makeUndoableState,
   MakeUndoableStateProps,
 } from '../src/make-undoable-state';
-import { RelativePayloadConfig, UState } from '../src/types/main';
+import { RelativePayloadConfig } from '../src/types/main';
 import { add, evolve } from '../src/util';
 
 type State = {
@@ -16,25 +16,21 @@ type PBT = {
   addToCount: RelativePayloadConfig<number>;
 };
 
-let newUState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 2,
-  },
-};
+let newUState = initUState<State, PBT>({
+  count: 2,
+});
 
 const props: MakeUndoableStateProps<State, PBT> = {
   initialUState: newUState,
   actionConfigs: {
-    addToCount: makeRelativeActionConfig({
+    addToCount: {
       makeActionForUndo: evolve({ payload: negate }),
       updateState: amount => evolve({ count: add(amount) }),
-    }),
+    },
   },
   options: {
     useBranchingHistory: true,
-    keepOutput: true,
+    keepStateUpdates: true,
   },
 };
 
@@ -50,7 +46,9 @@ describe('timeTravel', () => {
 
     expect(newUState.history.currentIndex).toBe(2);
     // no change for same index
-    expect(timeTravel(2)).toBe(newUState);
+    const temp = timeTravel(2);
+    expect(temp.state).toBe(newUState.state);
+    expect(temp.history).toBe(newUState.history);
 
     expect(() => timeTravel(3)).toThrow();
     expect(() => timeTravel(-2)).toThrow();

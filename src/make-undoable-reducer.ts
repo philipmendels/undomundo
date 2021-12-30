@@ -3,8 +3,9 @@ import {
   PayloadConfigByType,
   ActionConfigByType,
   UpdatersByType,
-  OriginalPayloadByType,
   UOptions,
+  RelativeActionConfig,
+  OriginalPayloadByType,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
 import { CustomData, History } from './types/history';
@@ -15,7 +16,7 @@ export type MakeUndoableReducerReducerProps<
   CBD extends CustomData = {}
 > = {
   actionConfigs: ActionConfigByType<S, PBT>;
-  options?: UOptions;
+  options?: UOptions<S>;
   initBranchData?: (history: History<PBT, CBD>) => CBD;
 };
 
@@ -28,16 +29,20 @@ export const makeUndoableReducer = <
   options,
   initBranchData,
 }: MakeUndoableReducerReducerProps<S, PBT, CBD>) => {
-  const { reducer } = makeReducer<S, OriginalPayloadByType<PBT>>(
+  const { reducer } = makeReducer<S, PBT>(
     mapRecord(actionConfigs)<UpdatersByType<S, OriginalPayloadByType<PBT>>>(
       config => ({
-        undo: config.updateStateOnUndo ?? config.updateState,
+        undo:
+          (config as RelativeActionConfig<S, PBT, any>).updateStateOnUndo ??
+          config.updateState,
         redo: config.updateState,
       })
     )
   );
+
   return wrapReducer<S, PBT, CBD>({
     reducer,
+    // pass the full actionConfig (not partial), because inside wrapReducer we still check if updateStateOnUndo is present
     actionConfigs,
     options,
     initBranchData,
