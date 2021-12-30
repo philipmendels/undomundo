@@ -1,14 +1,30 @@
-import { v4 } from 'uuid';
-import { Branch, CustomData, History, HistoryItemUnion } from './types/history';
+import {
+  AbsolutePayloadUnion,
+  Branch,
+  CustomData,
+  History,
+  HistoryActionUnion,
+  HistoryItemUnion,
+  HistoryPayload,
+  HistoryPayloadsAsUnion,
+  HistoryPayloadUnion,
+} from './types/history';
 import {
   Endomorphism,
-  OriginalActionUnion,
   PartialActionConfigByType,
   PayloadConfigByType,
-  HistoryActionUnion,
-  UOptions,
   Updater,
   UState,
+  HistoryUpdate,
+  HistoryOptions,
+  StateActionUnion,
+  RelativeActionConfig,
+  SyncActionUnion,
+  UActionUnion,
+  AbsolutePartialActionConfigUnion,
+  PartialActionConfigsAsUnion,
+  StateUpdate,
+  ActionConfigByType,
 } from './types/main';
 import {
   add1,
@@ -19,13 +35,10 @@ import {
   subtract,
   whenIsDefined,
   slice,
-  modifyArrayAt,
-  subtract1,
-  Evolver,
   repeatApply,
+  append,
 } from './util';
-import { append } from 'fp-ts/Array';
-import { flow, identity, pipe } from 'fp-ts/function';
+import { flow, pipe } from 'fp-ts/function';
 import { filter, map as mapR } from 'fp-ts/Record';
 
 const wrap = <PBT extends PayloadConfigByType, CD extends CustomData>(
@@ -60,10 +73,14 @@ export const getBranchActions = <
 >(
   branch: Branch<PBT, CD>
 ): HistoryActionUnion<PBT>[] =>
-  branch.stack.map(({ type, payload }) => ({
-    type,
-    payload,
-  }));
+  branch.stack.map(
+    ({ type, payload, extra }) =>
+      ({
+        type,
+        payload,
+        ...(extra === undefined ? {} : { extra }),
+      } as HistoryActionUnion<PBT>)
+  );
 
 type CollectedIds = {
   orphanIds: string[];
@@ -156,7 +173,7 @@ export const addHistoryItem = <
   CD extends CustomData
 >(
   action: HistoryItemUnion<PBT>,
-  options: Required<UOptions>,
+  options: Required<HistoryOptions>,
   initBranchData: (history: History<PBT, CD>) => CD
 ): Endomorphism<History<PBT, CD>> =>
   flow(
@@ -231,10 +248,10 @@ export const addActionToNewBranch = <
 ) =>
   wrap<PBT, CD>(hist => {
     const currentIndex = getCurrentIndex(hist);
-    const newBranchId = v4();
+    const newBranchId = action.id;
 
     const newBranch: Branch<PBT, CD> = {
-      created: new Date(),
+      created: action.created,
       id: newBranchId,
       // name: `branch ${branchCounter++}`,
       stack: getCurrentBranch(hist)
@@ -304,93 +321,237 @@ export const addActionToCurrentBranch = <
     })
   );
 
-export const undo = <S, PBT extends PayloadConfigByType>(
-  reduce: Updater<OriginalActionUnion<PBT>, S>,
-  actionConfigs: PartialActionConfigByType<S, PBT>
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
-  const { state, history } = uState;
-  const currentIndex = getCurrentIndex(history);
-  const currentBranch = getCurrentBranch(history);
-  const currentItem = currentBranch.stack[currentIndex];
-  const { type, payload } = currentItem;
-  const config = actionConfigs[type];
-  const newAction = config.makeActionForUndo({ type, payload });
-
-  return pipe(
-    uState,
-    evolve({
-      history: evolve({
-        currentIndex: subtract1,
-        branches: config.updateHistoryOnUndo
-          ? evolve({
-              [currentBranch.id]: evolve({
-                stack: modifyArrayAt(
-                  currentIndex,
-                  evolve({
-                    payload: config.updateHistoryOnUndo(state),
-                  } as Evolver<HistoryItemUnion<PBT>>)
-                ),
-              }),
-            })
-          : identity,
-      }),
-      state: reduce({
-        ...newAction,
-        undoMundo: { isUndo: true },
-      }),
-      output: append(newAction),
-    })
-  );
+export const getUndoValue = (payload: HistoryPayload<any, any>) => {
+  return isAbsolutePayload(payload) ? payload.undo : payload;
 };
 
-export const redo = <S, PBT extends PayloadConfigByType>(
-  reduce: Updater<OriginalActionUnion<PBT>, S>,
-  actionConfigs: PartialActionConfigByType<S, PBT>
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
-  const { state, history } = uState;
-  const currentIndex = getCurrentIndex(history);
-  const currentBranch = getCurrentBranch(history);
-
-  const currentItem = currentBranch.stack[currentIndex + 1];
-  const { type, payload } = currentItem;
-  const config = actionConfigs[type];
-  const newAction = { type, payload: config.getPayloadForRedo(payload) };
-
-  return pipe(
-    uState,
-    evolve({
-      history: evolve({
-        currentIndex: add1,
-        branches: config.updateHistoryOnRedo
-          ? evolve({
-              [currentBranch.id]: evolve({
-                stack: modifyArrayAt(
-                  currentIndex + 1,
-                  evolve({
-                    payload: config.updateHistoryOnRedo(state),
-                  } as Evolver<HistoryItemUnion<PBT>>)
-                ),
-              }),
-            })
-          : identity,
-      }),
-      state: reduce(newAction),
-      output: append(newAction),
-    })
-  );
+export const getRedoValue = (payload: HistoryPayload<any, any>) => {
+  return isAbsolutePayload(payload) ? payload.redo : payload;
 };
 
-export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
-  reduce: Updater<OriginalActionUnion<PBT>, S>,
+export const isAbsolutePayload = <PBT extends PayloadConfigByType>(
+  payload: HistoryPayloadsAsUnion<PBT>
+): payload is AbsolutePayloadUnion<PBT> =>
+  typeof payload === 'object' &&
+  (payload as object)?.hasOwnProperty('undo') &&
+  (payload as object)?.hasOwnProperty('redo');
+
+export const isAbsoluteConfig = <S, PBT extends PayloadConfigByType>(
+  config: PartialActionConfigsAsUnion<S, PBT>
+): config is AbsolutePartialActionConfigUnion<S, PBT> =>
+  !config.hasOwnProperty('makeActionForUndo');
+
+export const isSyncAction = <PBT extends PayloadConfigByType>(
+  action: SyncActionUnion<PBT> | UActionUnion<PBT>
+): action is SyncActionUnion<PBT> =>
+  (action as SyncActionUnion<PBT>).undomundo?.isSynchronizing;
+
+export const undo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
+  reduce: Updater<StateActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
   actionConfigs: PartialActionConfigByType<S, PBT>,
+  disableUpdateHistory: boolean
+): Endomorphism<UState<S, PBT, CD>> => uState => {
+  const { state, history } = uState;
+  const currentIndex = getCurrentIndex(history);
+  const currentBranch = getCurrentBranch(history);
+  const historyItem = currentBranch.stack[currentIndex];
+  const { type, extra, payload } = historyItem;
+
+  const historyAction = {
+    type,
+    payload,
+    ...(extra === undefined ? {} : { extra }),
+  } as HistoryActionUnion<PBT>;
+
+  const config = actionConfigs[type] as PartialActionConfigsAsUnion<S, PBT>;
+
+  let newPayload: HistoryPayloadsAsUnion<PBT> | undefined;
+
+  let newAction = getUndoAction(actionConfigs)(historyAction);
+
+  if (isAbsoluteConfig(config)) {
+    const { updateHistory } = config;
+    if (isAbsolutePayload(payload)) {
+      if (!disableUpdateHistory) {
+        newPayload = {
+          undo: payload.undo,
+          redo: updateHistory(state)(payload.redo),
+        };
+      }
+    } else {
+      throw new Error('payload does not match config');
+    }
+  } else {
+    const { updateHistory } = config;
+    if (!disableUpdateHistory) {
+      newPayload = updateHistory?.(state)(payload);
+    }
+  }
+
+  const historyUpdate: HistoryUpdate<PBT> = {
+    type: 'UNDO_WITH_UPDATE',
+    payload: newPayload as HistoryPayloadUnion<PBT>,
+  };
+
+  return pipe(
+    uState,
+    evolve({
+      history: reduceHistory(historyUpdate),
+      state: reduce(newAction),
+      stateUpdates: append<StateUpdate<PBT>>({
+        action: historyAction,
+        direction: 'undo',
+      }),
+      historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
+    })
+  );
+};
+
+// TODO: re-use code across the undo/redo functions in ./internal
+export const getUndoAction = <S, PBT extends PayloadConfigByType>(
+  actionConfigs: PartialActionConfigByType<S, PBT> | ActionConfigByType<S, PBT>
+) => (action: HistoryActionUnion<PBT>): StateActionUnion<PBT> => {
+  const { type, extra } = action;
+  const config = actionConfigs[type] as PartialActionConfigsAsUnion<S, PBT>;
+  const payload = action.payload as HistoryPayloadsAsUnion<PBT>;
+  let newAction: StateActionUnion<PBT>;
+
+  if (isAbsoluteConfig(config)) {
+    if (isAbsolutePayload(payload)) {
+      newAction = {
+        ...extra,
+        type,
+        payload: payload.undo,
+      };
+    } else {
+      throw new Error('payload does not match config');
+    }
+  } else {
+    newAction = config.makeActionForUndo({
+      ...extra,
+      type,
+      payload,
+    });
+    if ((config as RelativeActionConfig<any, any, any>).updateStateOnUndo) {
+      // we cannot simply add 'isUndo' to the 'meta' field,
+      // because the original 'meta' field may be a primitive
+      // value.
+      newAction = { ...newAction, undomundo: { isUndo: true } };
+    }
+  }
+
+  return newAction;
+};
+
+export const redo = <S, PBT extends PayloadConfigByType, CD extends CustomData>(
+  reduce: Updater<StateActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
+  actionConfigs: PartialActionConfigByType<S, PBT>,
+  disableUpdateHistory: boolean
+): Endomorphism<UState<S, PBT, CD>> => uState => {
+  const { state, history } = uState;
+  const currentIndex = getCurrentIndex(history);
+  const currentBranch = getCurrentBranch(history);
+
+  const historyItem = currentBranch.stack[currentIndex + 1];
+  const { type, payload, extra } = historyItem;
+
+  const historyAction = {
+    type,
+    payload,
+    ...(extra === undefined ? {} : { extra }),
+  } as HistoryActionUnion<PBT>;
+
+  const config = actionConfigs[type] as PartialActionConfigsAsUnion<S, PBT>;
+
+  let newPayload: HistoryPayloadsAsUnion<PBT> | undefined;
+
+  const newAction = getRedoAction(actionConfigs)(historyAction);
+
+  if (isAbsoluteConfig(config)) {
+    if (isAbsolutePayload(payload)) {
+      const { updateHistory } = config;
+
+      if (!disableUpdateHistory) {
+        newPayload = {
+          undo: updateHistory(state)(payload.undo),
+          redo: payload.redo,
+        };
+      }
+    } else {
+      throw new Error('payload does not match config');
+    }
+  } else {
+    const { updateHistory } = config;
+    if (!disableUpdateHistory) {
+      newPayload = updateHistory?.(state)(payload);
+    }
+  }
+
+  const historyUpdate: HistoryUpdate<PBT> = {
+    type: 'REDO_WITH_UPDATE',
+    payload: newPayload as HistoryPayloadUnion<PBT>,
+  };
+
+  return pipe(
+    uState,
+    evolve({
+      history: reduceHistory(historyUpdate),
+      state: reduce(newAction),
+      stateUpdates: append<StateUpdate<PBT>>({
+        action: historyAction,
+        direction: 'redo',
+      }),
+      historyUpdates: append<HistoryUpdate<PBT>>(historyUpdate),
+    })
+  );
+};
+
+export const getRedoAction = <S, PBT extends PayloadConfigByType>(
+  // configs are not really needed here, only for the
+  // additional type guard
+  actionConfigs: PartialActionConfigByType<S, PBT> | ActionConfigByType<S, PBT>
+) => (action: HistoryActionUnion<PBT>): StateActionUnion<PBT> => {
+  const { type, extra } = action;
+
+  const payload = action.payload as HistoryPayloadsAsUnion<PBT>;
+  const config = actionConfigs[type] as PartialActionConfigsAsUnion<S, PBT>;
+
+  let newAction: StateActionUnion<PBT>;
+
+  if (isAbsoluteConfig(config)) {
+    if (isAbsolutePayload(payload)) {
+      newAction = {
+        ...extra,
+        type,
+        payload: payload.redo,
+      };
+    } else {
+      throw new Error('payload does not match config');
+    }
+  } else {
+    newAction = {
+      ...extra,
+      type,
+      payload,
+    };
+  }
+
+  return newAction;
+};
+
+export const timeTravelCurrentBranch = <
+  S,
+  PBT extends PayloadConfigByType,
+  CD extends CustomData
+>(
+  reduce: Updater<StateActionUnion<PBT>, S>,
+  reduceHistory: Updater<HistoryUpdate<PBT>, History<PBT, CD>>,
+  actionConfigs: PartialActionConfigByType<S, PBT>,
+  disableUpdateHistory: boolean,
   indexOnBranch: number
-) => <CD extends CustomData>(
-  uState: UState<S, PBT, CD>
-): UState<S, PBT, CD> => {
+): Endomorphism<UState<S, PBT, CD>> => uState => {
   const { history } = uState;
   const currentIndex = getCurrentIndex(history);
   const currentBranch = getCurrentBranch(history);
@@ -404,27 +565,30 @@ export const timeTravelCurrentBranch = <S, PBT extends PayloadConfigByType>(
   } else if (indexOnBranch < currentIndex) {
     return repeatApply(
       currentIndex - indexOnBranch,
-      undo(reduce, actionConfigs)
+      undo(reduce, reduceHistory, actionConfigs, disableUpdateHistory)
     )(uState);
   } else {
     return repeatApply(
       indexOnBranch - currentIndex,
-      redo(reduce, actionConfigs)
+      redo(reduce, reduceHistory, actionConfigs, disableUpdateHistory)
     )(uState);
   }
 };
 
+/**
+ * returns [currentBranch, ...possibleBranches, caBranch]
+ */
 export const getPathFromCommonAncestor = <
   PBT extends PayloadConfigByType,
   CD extends CustomData
 >(
   history: History<PBT, CD>,
   branchId: string,
-  path: Branch<PBT, CD>[] = []
+  pathToTarget: Branch<PBT, CD>[] = []
 ): Branch<PBT, CD>[] => {
   const branch = history.branches[branchId];
   if (branch.parentConnection) {
-    const newPath = [branch, ...path];
+    const newPath = [branch, ...pathToTarget];
     if (branch.parentConnection.branchId === history.currentBranchId) {
       return newPath;
     } else {
@@ -443,11 +607,11 @@ export const getBranchSwitchProps = <
   CD extends CustomData
 >(
   history: History<PBT, CD>,
-  branchId: string
+  targetBranchId: string
 ) => {
-  const path = getPathFromCommonAncestor(history, branchId);
+  const path = getPathFromCommonAncestor(history, targetBranchId);
   return {
-    path,
+    pathToTarget: path.map(b => b.id),
     parentIndex: path[path.length - 1].parentConnection!.globalIndex,
     caIndex: path[0].parentConnection!.globalIndex,
   };

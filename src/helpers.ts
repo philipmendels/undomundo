@@ -1,166 +1,21 @@
-import { identity } from 'fp-ts/function';
 import { v4 } from 'uuid';
-import { getCurrentBranch } from './internal';
+import { getCurrentBranch, getRedoAction, getUndoAction } from './internal';
 import { CustomData, History } from './types/history';
 import {
-  ActionConvertor,
+  ActionConfigByType,
+  PartialActionConfigByType,
   PayloadConfigByType,
-  PayloadMapping,
-  DefaultPayload,
-  PartialActionConfig,
-  ActionConfig,
-  Updater,
-  AssociatedKeysOf,
-  FromToPayload,
-  TuplePayload,
+  SyncActionUnion,
+  StateActionUnion,
+  StateUpdate,
   UReducerOf,
   UState,
 } from './types/main';
 
-export const makeRelativePartialActionConfig = <
-  S,
-  PBT extends PayloadConfigByType,
-  K extends keyof PBT
->({
-  makeActionForUndo,
-  updateHistory,
-}: {
-  makeActionForUndo: ActionConvertor<PBT, K>;
-  updateHistory?: Updater<S, PBT[K]['history']>;
-}): PartialActionConfig<S, PBT, K> => ({
-  initPayloadInHistory: _ => identity,
-  makeActionForUndo,
-  getPayloadForRedo: identity,
-  updateHistoryOnUndo: updateHistory,
-  updateHistoryOnRedo: updateHistory,
-});
-
-export const makeRelativeActionConfig = <
-  S,
-  PBT extends PayloadConfigByType,
-  K extends keyof PBT
->({
-  updateState,
-  makeActionForUndo,
-  updateHistory,
-}: {
-  updateState: Updater<PBT[K]['original'], S>;
-  makeActionForUndo: ActionConvertor<PBT, K>;
-  updateHistory?: Updater<S, PBT[K]['history']>;
-}): ActionConfig<S, PBT, K> => ({
-  updateState: updateState,
-  ...makeRelativePartialActionConfig({
-    updateHistory,
-    makeActionForUndo,
-  }),
-});
-
-export const defaultPayloadMapping: PayloadMapping<
-  unknown,
-  DefaultPayload<unknown>
-> = {
-  composeUndoRedo: (undo, redo) => ({ undo, redo }),
-  getUndo: ({ undo }) => undo,
-  getRedo: ({ redo }) => redo,
-};
-
-export const fromToPayloadMapping: PayloadMapping<
-  unknown,
-  FromToPayload<unknown>
-> = {
-  composeUndoRedo: (from, to) => ({ from, to }),
-  getUndo: ({ from }) => from,
-  getRedo: ({ to }) => to,
-};
-
-export const tuplePayloadMapping: PayloadMapping<
-  unknown,
-  TuplePayload<unknown>
-> = {
-  composeUndoRedo: (undo, redo) => [undo, redo],
-  getUndo: ([undo]) => undo,
-  getRedo: ([_, redo]) => redo,
-};
-
-export const makeAbsolutePartialActionConfig = <PUR>(
-  payloadMapping: PayloadMapping<unknown, PUR>
-) => <
-  PBT extends PayloadConfigByType,
-  K extends AssociatedKeysOf<PBT, PUR>,
-  S
->({
-  getValueFromState,
-  updateHistory,
-}: {
-  getValueFromState: (state: S) => PBT[K]['original'];
-  updateHistory?: Updater<PBT[K]['original'], PBT[K]['original']>;
-}): PartialActionConfig<S, PBT, K> => {
-  return {
-    initPayloadInHistory: state => (redoValue, undoValue) =>
-      payloadMapping.composeUndoRedo(
-        // we should allow for a null undoValue
-        undoValue === undefined ? getValueFromState(state) : undoValue,
-        redoValue
-      ),
-    makeActionForUndo: ({ type, payload }) => ({
-      type,
-      payload: payloadMapping.getUndo(payload),
-    }),
-    getPayloadForRedo: payloadMapping.getRedo,
-    updateHistoryOnUndo:
-      updateHistory &&
-      (state => undoRedo =>
-        payloadMapping.composeUndoRedo(
-          payloadMapping.getUndo(undoRedo),
-          updateHistory!(getValueFromState(state))(
-            payloadMapping.getRedo(undoRedo)
-          )
-        )),
-    updateHistoryOnRedo:
-      updateHistory &&
-      (state => undoRedo =>
-        payloadMapping.composeUndoRedo(
-          updateHistory(getValueFromState(state))(
-            payloadMapping.getUndo(undoRedo)
-          ),
-          payloadMapping.getRedo(undoRedo)
-        )),
-  };
-};
-
-export const makeDefaultPartialActionConfig = makeAbsolutePartialActionConfig(
-  defaultPayloadMapping
-);
-
-export const makeAbsoluteActionConfig = <PUR>(
-  payloadMapping: PayloadMapping<unknown, PUR>
-) => <
-  PBT extends PayloadConfigByType,
-  K extends AssociatedKeysOf<PBT, PUR>,
-  S
->({
-  updateState,
-  updateHistory,
-  getValueFromState,
-}: {
-  updateState: Updater<PBT[K]['original'], S>;
-  getValueFromState: (state: S) => PBT[K]['original'];
-  updateHistory?: Updater<PBT[K]['original'], PBT[K]['original']>;
-}): ActionConfig<S, PBT, K> => ({
-  updateState: updateState,
-  ...makeAbsolutePartialActionConfig(payloadMapping)({
-    updateHistory,
-    getValueFromState,
-  }),
-});
-
-export const makeDefaultActionConfig = makeAbsoluteActionConfig(
-  defaultPayloadMapping
-);
-
-// This is only useful if you have a reducer
-// with the option keepOutput: true
-export const getOutputFunction = <
+// This is only useful if you already have a reducer
+// with the option keepStateUpdates: true and/or
+// keepHistoryUpdates true
+export const getUpdatesForAction = <
   S,
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
@@ -168,28 +23,36 @@ export const getOutputFunction = <
   uReducer: UReducerOf<S, PBT, CBD>
 ) => {
   return ([uState, action]: Parameters<UReducerOf<S, PBT, CBD>>) => {
-    const stateWithEmptyOutput: UState<S, PBT, CBD> = { ...uState, output: [] };
-    const { output } = uReducer(stateWithEmptyOutput, action);
-    return output;
+    const stateWithEmptyOutput: UState<S, PBT, CBD> = {
+      ...uState,
+      stateUpdates: [],
+      historyUpdates: [],
+    };
+    const { stateUpdates, historyUpdates } = uReducer(
+      stateWithEmptyOutput,
+      action
+    );
+    return { stateUpdates, historyUpdates };
   };
 };
 
 export const initUState = <
   S,
   PBT extends PayloadConfigByType,
-  CD extends CustomData
+  CD extends CustomData = {}
 >(
   state: S,
   custom = {} as CD
 ): UState<S, PBT, CD> => ({
-  output: [],
+  historyUpdates: [],
+  stateUpdates: [],
   history: initHistory(custom),
   state,
 });
 
 export const initHistory = <
   PBT extends PayloadConfigByType,
-  CD extends CustomData
+  CD extends CustomData = {}
 >(
   custom = {} as CD
 ): History<PBT, CD> => {
@@ -199,7 +62,7 @@ export const initHistory = <
     branches: {
       [initialBranchId]: {
         id: initialBranchId,
-        created: new Date(),
+        created: new Date().toISOString(),
         stack: [],
         custom,
       },
@@ -221,3 +84,43 @@ export const canUndo = <PBT extends PayloadConfigByType, CD extends CustomData>(
 ) => history.currentIndex >= 0;
 
 export { getCurrentBranch };
+
+type CastAction<
+  S extends boolean,
+  PBT extends PayloadConfigByType
+> = S extends true ? SyncActionUnion<PBT> : StateActionUnion<PBT>;
+
+export interface GetActionFromStateUpdateProps<S extends boolean> {
+  isSynchronizing: S;
+  invertAction?: boolean;
+}
+
+export const getAction = <S, PBT extends PayloadConfigByType>(
+  actionConfigs: PartialActionConfigByType<S, PBT> | ActionConfigByType<S, PBT>
+) => <S extends boolean>(props: GetActionFromStateUpdateProps<S>) => (
+  update: StateUpdate<PBT>
+): CastAction<S, PBT> => {
+  const { isSynchronizing, invertAction = false } = props;
+  let action: StateActionUnion<PBT>;
+  if (
+    update.direction === 'undo' ||
+    (update.direction === 'redo' && invertAction)
+  ) {
+    action = getUndoAction(actionConfigs)(update.action);
+  } else {
+    action = getRedoAction(actionConfigs)(update.action);
+  }
+
+  if (isSynchronizing) {
+    const syncAction: SyncActionUnion<PBT> = {
+      ...action,
+      undomundo: {
+        ...action.undomundo,
+        isSynchronizing: true,
+      },
+    };
+    return syncAction as CastAction<S, PBT>;
+  } else {
+    return action as CastAction<S, PBT>;
+  }
+};

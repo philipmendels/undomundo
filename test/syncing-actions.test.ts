@@ -1,18 +1,15 @@
 import { negate } from 'fp-ts-std/Number';
+import { v4 } from 'uuid';
 import { makeUndoableReducer } from '../src';
 import { redo, undo } from '../src/action-creators';
+import { getAction, initUState } from '../src/helpers';
 import {
-  makeDefaultActionConfig,
-  makeRelativeActionConfig,
-  initHistory,
-} from '../src/helpers';
-import {
-  ActionUnion,
-  UState,
-  OriginalPayloadByType,
   ActionConfigByType,
-  DefaultPayloadConfig,
+  AbsolutePayloadConfig,
   RelativePayloadConfig,
+  StateUpdate,
+  PayloadConfigByType,
+  SyncActionUnion,
 } from '../src/types/main';
 import { add, evolve, merge } from '../src/util';
 
@@ -21,59 +18,107 @@ type State = {
 };
 
 type PBT = {
-  updateCount: DefaultPayloadConfig<number>;
+  updateCount: AbsolutePayloadConfig<number>;
   addToCount: RelativePayloadConfig<number>;
   multiplyCount: RelativePayloadConfig<number>;
 };
 
+// TODO: add test for syncing updateStateOnUndo
+// addToCount_alt: {
+//   ...makeRelativeActionConfig({
+//     updateState: amount => evolve({ count: add(amount) }),
+//     makeActionForUndo: identity,
+//   }),
+//   // separate updater for undo
+//   updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
+// },
+
 const actionConfigs: ActionConfigByType<State, PBT> = {
-  addToCount: makeRelativeActionConfig({
+  addToCount: {
     makeActionForUndo: evolve({ payload: negate }),
     updateState: amount => evolve({ count: add(amount) }),
-  }),
-  multiplyCount: makeRelativeActionConfig({
+  },
+  multiplyCount: {
     makeActionForUndo: evolve({ payload: p => 1 / p }),
     updateState: amount => evolve({ count: prev => prev * amount }),
-  }),
-  updateCount: makeDefaultActionConfig({
+  },
+  updateCount: {
     updateState: count => merge({ count }),
-    getValueFromState: state => state.count,
-    updateHistory: count => _ => count,
-  }),
+    updateHistory: state => _ => state.count,
+  },
 };
 
+interface Batch<PBT extends PayloadConfigByType> {
+  id: string;
+  updates: StateUpdate<PBT>[];
+}
+
+interface ServerBatch<PBT extends PayloadConfigByType> {
+  batch: Batch<PBT>;
+  parentId?: string;
+}
+
 const createClient = () => {
-  let uState: UState<State, PBT> = {
-    output: [],
-    history: initHistory(),
-    state: {
-      count: 0,
-    },
-  };
+  let uState = initUState<State, PBT>({
+    count: 0,
+  });
 
   const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
     actionConfigs,
   });
 
+  const log: Batch<PBT>[] = [];
+
   const { addToCount, updateCount, multiplyCount } = actionCreators;
+
+  const push = (actions: SyncActionUnion<PBT>[]) => {
+    uState = actions.reduce(uReducer, uState);
+  };
 
   return {
     getCurrentState: () => uState,
-    push: (actions: ActionUnion<OriginalPayloadByType<PBT>>[]) => {
-      actions.forEach(action => {
-        uState = uReducer(uState, {
-          ...action,
-          meta: { skipHistory: true, skipOutput: true },
-        });
-      });
+    pushUpdate: (serverBatch: ServerBatch<PBT>) => {
+      const { batch } = serverBatch;
+      if (!log.length || log[log.length - 1].id === serverBatch.parentId) {
+        log.push(batch);
+        push(batch.updates.map(convert));
+      } else {
+        const idx = !serverBatch.parentId
+          ? -1
+          : log.findIndex(batch => batch.id === serverBatch.parentId);
+        if (serverBatch.parentId && idx === -1) {
+          throw Error(
+            'client received update out of sync, parent is not yet here'
+          );
+        }
+        const toRevert = log.splice(idx + 1);
+        push(
+          toRevert
+            .flatMap(batch => batch.updates)
+            .reverse()
+            .map(revert)
+        );
+        log.push(batch);
+        push(batch.updates.map(convert));
+        log.push(...toRevert);
+        push(toRevert.flatMap(batch => batch.updates).map(convert));
+      }
     },
+    pullUpdate: () => {
+      const updates = uState.stateUpdates;
+      if (updates.length) {
+        const batch: Batch<PBT> = {
+          updates,
+          id: v4(),
+        };
+        log.push(batch);
+        return batch;
+      }
+      return null;
+    },
+    push,
     pull: () => {
-      const actions = uState.output;
-      uState = {
-        ...uState,
-        output: [],
-      };
-      return actions;
+      return uState.stateUpdates;
     },
     updateCount: (count: number) => {
       uState = uReducer(uState, updateCount(count));
@@ -93,11 +138,17 @@ const createClient = () => {
   };
 };
 
+const convert = getAction(actionConfigs)({ isSynchronizing: true });
+const revert = getAction(actionConfigs)({
+  isSynchronizing: true,
+  invertAction: true,
+});
+
 describe('syncing actions without conflicts', () => {
   const client1 = createClient();
   const client2 = createClient();
-  const sync1to2 = () => client2.push(client1.pull());
-  const sync2to1 = () => client1.push(client2.pull());
+  const sync1to2 = () => client2.push(client1.pull().map(convert));
+  const sync2to1 = () => client1.push(client2.pull().map(convert));
 
   it('effect works', () => {
     client1.addToCount(3);
@@ -163,7 +214,6 @@ describe('syncing actions without conflicts', () => {
 describe('syncing actions with conflicts ', () => {
   const client1 = createClient();
   const client2 = createClient();
-  let serverHist: ActionUnion<OriginalPayloadByType<PBT>>[] = [];
 
   it('conflicts are resolved for all-absolute payloads', () => {
     client1.updateCount(3);
@@ -178,15 +228,14 @@ describe('syncing actions with conflicts ', () => {
 
     // Very basic implementation without the need to revert out-of-sync actions.
     // Actions are always applied twice due to confirmation step, therefore
-    // it only works if all the payloads of the out-of-sync actions are absolute.
+    // it only works if all the payloads of the out-of-sync actions are absolute and
+    // if a client does not create a new action before receiving the confirmation.
 
-    serverHist = [...serverHist, ...effects2];
-    client1.push(effects2); // sync
-    client2.push(effects2); // confirmation
+    client1.push(effects2.map(convert)); // sync
+    client2.push(effects2.map(convert)); // confirmation
 
-    serverHist = [...serverHist, ...effects1];
-    client1.push(effects1); // confirmation
-    client2.push(effects1); // sync
+    client1.push(effects1.map(convert)); // confirmation
+    client2.push(effects1.map(convert)); // sync
 
     s1 = client1.getCurrentState();
     s2 = client2.getCurrentState();
@@ -205,10 +254,7 @@ describe('syncing actions with conflicts ', () => {
     expect(s2.state.count).toEqual(9);
     const effects2 = client2.pull();
 
-    serverHist = [...serverHist, ...effects1];
-    serverHist = [...serverHist, ...effects2];
-
-    client1.push(effects2); // sync
+    client1.push(effects2.map(convert)); // sync
 
     // Client 2 is out-of-sync. The actions in client 2 that are out-of-sync
     // need to be reverted, then the actions of client 1 need to be synced to
@@ -217,24 +263,15 @@ describe('syncing actions with conflicts ', () => {
     // The next line reverts the last action correctly but leads to the wrong undo-history:
     // client2.undo().
     //
-    // Instead let's revert the actions manually. In this crude example we can only revert
-    // the relative actions because we are mapping over the effects (which lack the
-    // the absolute undo-redo payloads). Normally this should happen on the client and
-    // there we should probably map over the actions in the undo history which do have
-    // the absolute payloads.
-    client2.push(
-      effects2.map(({ type, payload }) =>
-        // TODO: typing
-        actionConfigs[type].makeActionForUndo({ type, payload } as any)
-      )
-    );
+    // Instead let's revert the actions manually.
+    client2.push(effects2.map(revert));
 
     s2 = client2.getCurrentState();
 
     expect(s2.state.count).toEqual(3);
 
-    client2.push(effects1); // sync
-    client2.push(effects2); // re-apply
+    client2.push(effects1.map(convert)); // sync
+    client2.push(effects2.map(convert)); // re-apply
 
     s1 = client1.getCurrentState();
     s2 = client2.getCurrentState();
@@ -253,4 +290,27 @@ describe('syncing actions with conflicts ', () => {
     expect(s1.state.count).toEqual(13);
     expect(s2.state.count).toEqual(5);
   });
+});
+
+describe('syncing using client log', () => {
+  const client1 = createClient();
+  const client2 = createClient();
+
+  client1.updateCount(3);
+  let update1 = client1.pullUpdate()!;
+
+  client2.updateCount(5);
+  let update2 = client2.pullUpdate()!;
+
+  const serverLog: Batch<PBT>[] = [];
+
+  serverLog.push(update1);
+  client2.pushUpdate({ batch: update1 });
+
+  let parentId = serverLog[serverLog.length - 1].id;
+  serverLog.push(update2);
+  client1.pushUpdate({ batch: update2, parentId });
+
+  expect(client1.getCurrentState().state.count).toEqual(5);
+  expect(client2.getCurrentState().state.count).toEqual(5);
 });

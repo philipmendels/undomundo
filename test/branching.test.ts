@@ -1,5 +1,5 @@
 import { negate } from 'fp-ts-std/Number';
-import { initHistory, makeRelativeActionConfig } from '../src/helpers';
+import { initUState } from '../src/helpers';
 import {
   getBranchActions,
   getCurrentBranch,
@@ -10,11 +10,7 @@ import {
   MakeUndoableStateProps,
 } from '../src/make-undoable-state';
 import { ParentConnection } from '../src/types/history';
-import {
-  OriginalActionUnion,
-  RelativePayloadConfig,
-  UState,
-} from '../src/types/main';
+import { RelativePayloadConfig, StateActionUnion } from '../src/types/main';
 import { add, evolve } from '../src/util';
 
 type State = {
@@ -25,21 +21,17 @@ type PBT = {
   addToCount: RelativePayloadConfig<number>;
 };
 
-let newUState: UState<State, PBT> = {
-  output: [],
-  history: initHistory(),
-  state: {
-    count: 2,
-  },
-};
+let newUState = initUState<State, PBT>({
+  count: 2,
+});
 
 const props: MakeUndoableStateProps<State, PBT> = {
   initialUState: newUState,
   actionConfigs: {
-    addToCount: makeRelativeActionConfig({
+    addToCount: {
       makeActionForUndo: evolve({ payload: negate }),
       updateState: amount => evolve({ count: add(amount) }),
-    }),
+    },
   },
 };
 
@@ -55,7 +47,7 @@ describe('branching', () => {
     undo();
     newUState = addToCount(7);
     expect(getCurrentBranchActions(newUState.history)).toStrictEqual<
-      OriginalActionUnion<PBT>[]
+      StateActionUnion<PBT>[]
     >([
       {
         type: 'addToCount',
@@ -100,9 +92,7 @@ describe('branching', () => {
 
     const newBranch = getCurrentBranch(newUState.history);
 
-    expect(getBranchActions(oldBranch)).toStrictEqual<
-      OriginalActionUnion<PBT>[]
-    >([
+    expect(getBranchActions(oldBranch)).toStrictEqual<StateActionUnion<PBT>[]>([
       {
         type: 'addToCount',
         payload: 5,
@@ -116,9 +106,7 @@ describe('branching', () => {
 
     expect(oldBranch.lastGlobalIndex).toBe(1);
 
-    expect(getBranchActions(newBranch)).toStrictEqual<
-      OriginalActionUnion<PBT>[]
-    >([
+    expect(getBranchActions(newBranch)).toStrictEqual<StateActionUnion<PBT>[]>([
       {
         type: 'addToCount',
         payload: 2,
@@ -155,7 +143,7 @@ describe('branching', () => {
     expect(currentBranch.stack.length).toBe(3);
 
     expect(getBranchActions(currentBranch)).toStrictEqual<
-      OriginalActionUnion<PBT>[]
+      StateActionUnion<PBT>[]
     >([
       {
         type: 'addToCount',
@@ -243,14 +231,12 @@ describe('branching', () => {
 
     let branch2 = getCurrentBranch(newUState.history);
 
-    expect(getBranchActions(branch1)).toStrictEqual<OriginalActionUnion<PBT>[]>(
-      [
-        {
-          type: 'addToCount',
-          payload: 2,
-        },
-      ]
-    );
+    expect(getBranchActions(branch1)).toStrictEqual<StateActionUnion<PBT>[]>([
+      {
+        type: 'addToCount',
+        payload: 2,
+      },
+    ]);
 
     expect(branch1.parentConnection).toStrictEqual<ParentConnection>({
       branchId: branch2.id,
@@ -259,14 +245,12 @@ describe('branching', () => {
 
     expect(branch1.lastGlobalIndex).toBe(-1);
 
-    expect(getBranchActions(branch2)).toStrictEqual<OriginalActionUnion<PBT>[]>(
-      [
-        {
-          type: 'addToCount',
-          payload: 3,
-        },
-      ]
-    );
+    expect(getBranchActions(branch2)).toStrictEqual<StateActionUnion<PBT>[]>([
+      {
+        type: 'addToCount',
+        payload: 3,
+      },
+    ]);
 
     addToCount(5);
     undo();
@@ -276,27 +260,23 @@ describe('branching', () => {
     branch2 = newUState.history.branches[branch2.id];
     let branch3 = getCurrentBranch(newUState.history);
 
-    expect(getBranchActions(branch2)).toStrictEqual<OriginalActionUnion<PBT>[]>(
-      [
-        {
-          type: 'addToCount',
-          payload: 5,
-        },
-      ]
-    );
+    expect(getBranchActions(branch2)).toStrictEqual<StateActionUnion<PBT>[]>([
+      {
+        type: 'addToCount',
+        payload: 5,
+      },
+    ]);
 
-    expect(getBranchActions(branch3)).toStrictEqual<OriginalActionUnion<PBT>[]>(
-      [
-        {
-          type: 'addToCount',
-          payload: 3,
-        },
-        {
-          type: 'addToCount',
-          payload: 7,
-        },
-      ]
-    );
+    expect(getBranchActions(branch3)).toStrictEqual<StateActionUnion<PBT>[]>([
+      {
+        type: 'addToCount',
+        payload: 3,
+      },
+      {
+        type: 'addToCount',
+        payload: 7,
+      },
+    ]);
 
     expect(branch1.parentConnection).toStrictEqual<ParentConnection>({
       branchId: branch3.id,
@@ -318,17 +298,15 @@ describe('branching', () => {
     expect(branch2.parentConnection!.branchId).toBe(branch3.id);
     expect(branch2.parentConnection!.globalIndex).toBe(-1);
 
-    expect(getBranchActions(branch3)).toStrictEqual<OriginalActionUnion<PBT>[]>(
-      [
-        {
-          type: 'addToCount',
-          payload: 7,
-        },
-        {
-          type: 'addToCount',
-          payload: 11,
-        },
-      ]
-    );
+    expect(getBranchActions(branch3)).toStrictEqual<StateActionUnion<PBT>[]>([
+      {
+        type: 'addToCount',
+        payload: 7,
+      },
+      {
+        type: 'addToCount',
+        payload: 11,
+      },
+    ]);
   });
 });
