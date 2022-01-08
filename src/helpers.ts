@@ -103,7 +103,7 @@ export const getAction = <S, PBT extends PayloadConfigByType>(
   const { isSynchronizing, invertAction = false } = props;
   let action: StateActionUnion<PBT>;
   if (
-    update.direction === 'undo' ||
+    (update.direction === 'undo' && !invertAction) ||
     (update.direction === 'redo' && invertAction)
   ) {
     action = getUndoAction(actionConfigs)(update.action);
