@@ -65,10 +65,10 @@ export const makeUndoableState = <
     newUState: UState<S, PBT, CBD>
   ) => {
     const oldUState = uState;
-    if (newUState !== oldUState) {
-      uState = newUState;
-      onChange?.({ actions, newUState, oldUState });
-    }
+    // if (newUState !== oldUState) {
+    uState = newUState;
+    onChange?.({ actions, newUState, oldUState });
+    // }
     return newUState;
   };
 

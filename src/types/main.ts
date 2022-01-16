@@ -201,7 +201,7 @@ export type ActionCreatorsByType<PBT extends PayloadConfigByType> = {
   ) => Action<K, PBT[K]['payload']> & PBT[K]['extra'];
 };
 
-type UActionOptions<P extends PayloadConfig> = {
+export type UActionOptions<P extends PayloadConfig> = {
   skipHistory?: boolean;
   // skipState is e.g. for the drop at the end of a drag, with
   // relative positioning. At the drop will full delta

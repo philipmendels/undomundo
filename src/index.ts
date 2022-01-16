@@ -1,3 +1,4 @@
+export * from './make-undoable-effects';
 export * from './make-undoable-state';
 export * from './make-undoable-reducer';
 export * from './wrap-reducer';
