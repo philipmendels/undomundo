@@ -16,7 +16,7 @@ import {
   UOptions,
 } from './types/main';
 import { mapRecord } from './util';
-import { CustomData, History } from './types/history';
+import { CustomData, InitBranchData } from './types/history';
 import { canRedo, canUndo, getAction, getCurrentBranch } from './helpers';
 
 export type OnChangeEvent<
@@ -38,7 +38,7 @@ export type MakeUndoableStateProps<
   actionConfigs: ActionConfigByType<S, PBT>;
   options?: UOptions<S>;
   onChange?: (event: OnChangeEvent<S, PBT, CBD>) => void;
-  initBranchData?: (history: History<PBT, CBD>) => CBD;
+  initBranchData?: InitBranchData<PBT, CBD>;
 };
 
 export const makeUndoableState = <

@@ -8,6 +8,7 @@ import {
   HistoryPayload,
   HistoryPayloadsAsUnion,
   HistoryPayloadUnion,
+  InitBranchData,
 } from './types/history';
 import {
   Endomorphism,
@@ -174,7 +175,7 @@ export const addHistoryItem = <
 >(
   action: HistoryItemUnion<PBT>,
   options: Required<HistoryOptions>,
-  initBranchData: (history: History<PBT, CD>) => CD
+  initBranchData: InitBranchData<PBT, CD>
 ): Endomorphism<History<PBT, CD>> =>
   flow(
     ifElse(
@@ -244,7 +245,7 @@ export const addActionToNewBranch = <
   CD extends CustomData
 >(
   action: HistoryItemUnion<PBT>,
-  initBranchData: (history: History<PBT, CD>) => CD
+  initBranchData: InitBranchData<PBT, CD>
 ) =>
   wrap<PBT, CD>(hist => {
     const currentIndex = getCurrentIndex(hist);

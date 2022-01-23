@@ -6,7 +6,12 @@ import {
   storeLastGlobalIndex,
   updatePath,
 } from './internal';
-import { CustomData, History, HistoryItemUnion } from './types/history';
+import {
+  CustomData,
+  History,
+  HistoryItemUnion,
+  InitBranchData,
+} from './types/history';
 import {
   HistoryOptions,
   HistoryUpdate,
@@ -21,7 +26,7 @@ export type MakeHistoryReducerProps<
 > =
   | {
       options?: HistoryOptions;
-      initBranchData?: (history: History<PBT, CBD>) => CBD;
+      initBranchData?: InitBranchData<PBT, CBD>;
     }
   | undefined;
 

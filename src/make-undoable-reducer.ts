@@ -8,7 +8,7 @@ import {
   OriginalPayloadByType,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
-import { CustomData, History } from './types/history';
+import { CustomData, InitBranchData } from './types/history';
 
 export type MakeUndoableReducerReducerProps<
   S,
@@ -17,7 +17,7 @@ export type MakeUndoableReducerReducerProps<
 > = {
   actionConfigs: ActionConfigByType<S, PBT>;
   options?: UOptions<S>;
-  initBranchData?: (history: History<PBT, CBD>) => CBD;
+  initBranchData?: InitBranchData<PBT, CBD>;
 };
 
 export const makeUndoableReducer = <

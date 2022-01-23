@@ -11,7 +11,12 @@ import {
   undo,
 } from './internal';
 import { makeHistoryReducer } from './make-history-reducer';
-import { CustomData, History, HistoryItemUnion } from './types/history';
+import {
+  CustomData,
+  History,
+  HistoryItemUnion,
+  InitBranchData,
+} from './types/history';
 import {
   PayloadConfigByType,
   PartialActionConfigByType,
@@ -40,7 +45,7 @@ export type WrapReducerProps<
   reducer: ReducerOf<S, PBT, NUA>;
   actionConfigs: PartialActionConfigByType<S, PBT>;
   options?: UOptions<S>;
-  initBranchData?: (history: History<PBT, CBD>) => CBD;
+  initBranchData?: InitBranchData<PBT, CBD>;
 };
 
 export const wrapReducer = <

@@ -89,15 +89,33 @@ export interface Branch<
   custom: CustomBranchData;
 }
 
-export interface History<
+type HistoryBase<
   PBT extends PayloadConfigByType,
   CustomBranchData extends CustomData
-> {
+> = {
   branches: Record<string, Branch<PBT, CustomBranchData>>;
-  currentBranchId: string;
   currentIndex: number;
   stats: {
     branchCounter: number;
     actionCounter: number;
   };
-}
+};
+
+export type History<
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData
+> = HistoryBase<PBT, CBD> & {
+  currentBranchId: string;
+};
+
+export type MaybeEmptyHistory<
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData
+> = HistoryBase<PBT, CBD> & {
+  currentBranchId?: string;
+};
+
+export type InitBranchData<
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData
+> = (history: MaybeEmptyHistory<PBT, CBD>) => CBD;

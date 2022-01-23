@@ -9,10 +9,16 @@ import {
   UActionOptions,
   UState,
 } from './types/main';
-import { CustomData, History } from './types/history';
+import { CustomData, History, InitBranchData } from './types/history';
 
 import { mapRecord, mapRecordWithKey } from '../src/util';
-import { canRedo, canUndo, getCurrentBranch } from './helpers';
+import {
+  canRedo,
+  canUndo,
+  createEmptyHistory,
+  getCurrentBranch,
+  initHistory,
+} from './helpers';
 import { undo, redo, timeTravel, switchToBranch } from './action-creators';
 
 import { wrapReducer } from './wrap-reducer';
@@ -67,11 +73,11 @@ export type MakeUndoableEffectsProps<
   PBT extends PayloadConfigByType,
   CBD extends CustomData = {}
 > = {
-  initialHistory: History<PBT, CBD>;
   actionConfigs: EffectConfigs<PBT>;
   options?: HistoryOptions;
   onChange?: (event: HistoryOnChangeEvent<PBT, CBD>) => void;
-  initBranchData?: (history: History<PBT, CBD>) => CBD;
+  initialHistory?: History<PBT, CBD>;
+  initBranchData?: InitBranchData<PBT, CBD>;
 };
 
 export const makeUndoableEffects = <
@@ -86,7 +92,8 @@ export const makeUndoableEffects = <
 }: MakeUndoableEffectsProps<PBT, CBD>) => {
   let uState: UState<State, PBT, CBD> = {
     state: {},
-    history: initialHistory,
+    history:
+      initialHistory ?? initHistory(initBranchData?.(createEmptyHistory())),
     historyUpdates: [],
     stateUpdates: [],
   };

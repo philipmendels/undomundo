@@ -1,10 +1,6 @@
 import { negate } from 'fp-ts-std/Number';
 import { identity } from 'fp-ts/function';
-import {
-  AbsolutePayloadConfig,
-  initHistory,
-  RelativePayloadConfig,
-} from '../src';
+import { AbsolutePayloadConfig, RelativePayloadConfig } from '../src';
 import { makeUndoableEffects } from '../src/make-undoable-effects';
 import { add, evolve, merge, subtract } from '../src/util';
 
@@ -26,10 +22,7 @@ const setState = (updater: (prev: State) => State) => {
   state = updater(state);
 };
 
-let history = initHistory<PBT>();
-
 const { undoables, undo, redo, getCurrentHistory } = makeUndoableEffects<PBT>({
-  initialHistory: history,
   actionConfigs: {
     updateCount: { updateState: count => setState(merge({ count })) },
     addToCount: {
@@ -49,10 +42,12 @@ const { undoables, undo, redo, getCurrentHistory } = makeUndoableEffects<PBT>({
 
 const { addToCount, addToCount_alt, updateCount } = undoables;
 
-const expectGetCurrentHistoryEquals = () =>
-  expect(history).toBe(getCurrentHistory());
-
 describe('effects', () => {
+  let history = getCurrentHistory();
+
+  const expectGetCurrentHistoryEquals = () =>
+    expect(history).toBe(getCurrentHistory());
+
   it('update works', () => {
     expect(state.count).toBe(3);
 

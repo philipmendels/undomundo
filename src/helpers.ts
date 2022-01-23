@@ -1,6 +1,6 @@
 import { v4 } from 'uuid';
 import { getCurrentBranch, getRedoAction, getUndoAction } from './internal';
-import { CustomData, History } from './types/history';
+import { CustomData, History, MaybeEmptyHistory } from './types/history';
 import {
   ActionConfigByType,
   PartialActionConfigByType,
@@ -50,6 +50,18 @@ export const initUState = <
   state,
 });
 
+export const createEmptyHistory = <
+  PBT extends PayloadConfigByType,
+  CBD extends CustomData = {}
+>(): MaybeEmptyHistory<PBT, CBD> => ({
+  currentIndex: -1,
+  branches: {},
+  stats: {
+    branchCounter: 0,
+    actionCounter: 0,
+  },
+});
+
 export const initHistory = <
   PBT extends PayloadConfigByType,
   CD extends CustomData = {}
@@ -57,8 +69,9 @@ export const initHistory = <
   custom = {} as CD
 ): History<PBT, CD> => {
   const initialBranchId = v4();
+  const empty = createEmptyHistory();
   return {
-    currentIndex: -1,
+    ...empty,
     branches: {
       [initialBranchId]: {
         id: initialBranchId,
@@ -69,8 +82,8 @@ export const initHistory = <
     },
     currentBranchId: initialBranchId,
     stats: {
+      ...empty.stats,
       branchCounter: 1,
-      actionCounter: 0,
     },
   };
 };
