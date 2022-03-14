@@ -11,7 +11,7 @@ type PBT = {
   updateCount: AbsolutePayloadConfig<number>;
 };
 
-type CallbackParams = OnChangeEvent<State, PBT, {}>[];
+type CallbackParams = OnChangeEvent<State, PBT, Record<string, unknown>>[];
 
 let newUState = initUState<State, PBT>({
   count: 2,
@@ -29,7 +29,7 @@ const {
   actionConfigs: {
     updateCount: {
       updateState: count => merge({ count }),
-      updateHistory: state => _ => state.count,
+      updateHistory: state => () => state.count,
     },
   },
   onChange,

@@ -1,3 +1,4 @@
+/* eslint-disable no-prototype-builtins */
 import { flow, pipe } from 'fp-ts/function';
 import { v4 } from 'uuid';
 import { canRedo, canUndo, getAction } from './helpers';
@@ -39,7 +40,7 @@ const storeIndexAction: HistoryUpdate<any> = { type: 'STORE_INDEX' };
 export type WrapReducerProps<
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {},
+  CBD extends CustomData = Record<string, unknown>,
   NUA = never
 > = {
   reducer: ReducerOf<S, PBT, NUA>;
@@ -51,7 +52,7 @@ export type WrapReducerProps<
 export const wrapReducer = <
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {},
+  CBD extends CustomData = Record<string, unknown>,
   NUA = never
 >({
   reducer,
@@ -72,9 +73,9 @@ export const wrapReducer = <
     initBranchData,
   });
 
-  const reduceHistory = (action: HistoryUpdate<PBT>) => (
-    history: History<PBT, CBD>
-  ) => historyReducer(history, action);
+  const reduceHistory =
+    (action: HistoryUpdate<PBT>) => (history: History<PBT, CBD>) =>
+      historyReducer(history, action);
 
   const reduce = (action: StateActionUnion<PBT>) => (state: S) =>
     reducer(state, action);
@@ -165,10 +166,8 @@ export const wrapReducer = <
         );
       }
     } else if (action.type === 'switchToBranch') {
-      const {
-        branchId,
-        travelTo = 'LAST_COMMON_ACTION_IF_PAST',
-      } = action.payload;
+      const { branchId, travelTo = 'LAST_COMMON_ACTION_IF_PAST' } =
+        action.payload;
 
       if (branchId === history.currentBranchId) {
         throw new Error(

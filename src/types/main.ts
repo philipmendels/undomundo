@@ -41,22 +41,18 @@ export type OriginalPayloadByType<PBT extends PayloadConfigByType> = {
   [K in keyof PBT]: PBT[K]['payload'];
 };
 
-export type ActionUnion<PBT extends StringMap> = ValueOf<
-  {
-    [K in keyof PBT]: Action<K, PBT[K]>;
-  }
->;
+export type ActionUnion<PBT extends StringMap> = ValueOf<{
+  [K in keyof PBT]: Action<K, PBT[K]>;
+}>;
 
 export type StateAction<T, P extends PayloadConfig> = Action<T, P['payload']> &
   P['extra'] & {
     undomundo?: { isUndo?: boolean };
   };
 
-export type StateActionUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: StateAction<K, PBT[K]>;
-  }
->;
+export type StateActionUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: StateAction<K, PBT[K]>;
+}>;
 
 export type UAction<T, P extends PayloadConfig> = Action<T, P['payload']> & {
   undomundo: {
@@ -71,17 +67,13 @@ export type SyncAction<T, P extends PayloadConfig> = StateAction<T, P> & {
   };
 };
 
-export type SyncActionUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: SyncAction<K, PBT[K]>;
-  }
->;
+export type SyncActionUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: SyncAction<K, PBT[K]>;
+}>;
 
-export type UActionUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: UAction<K, PBT[K]>;
-  }
->;
+export type UActionUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: UAction<K, PBT[K]>;
+}>;
 
 export type PayloadMapping<PO, PH> = {
   composeUndoRedo: (undo: PO, redo: PO) => PH;
@@ -271,7 +263,7 @@ export type StateUpdate<PBT extends PayloadConfigByType> = {
 export type UState<
   S,
   PBT extends PayloadConfigByType,
-  CustomBranchData extends CustomData = {}
+  CustomBranchData extends CustomData = Record<string, unknown>
 > = {
   state: S;
   history: History<PBT, CustomBranchData>;
@@ -344,7 +336,7 @@ export type UReducerAction<PBT extends PayloadConfigByType> =
 export type UReducerOf<
   S,
   PBT extends PayloadConfigByType,
-  CustomBranchData extends CustomData = {},
+  CustomBranchData extends CustomData = Record<string, unknown>,
   NUA = never
 > = Reducer<UState<S, PBT, CustomBranchData>, UReducerAction<PBT> | NUA>;
 

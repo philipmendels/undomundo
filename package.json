@@ -1,69 +1,67 @@
 {
   "version": "0.1.0",
   "license": "MIT",
-  "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
+  "source": "src/index.ts",
+  "main": "dist/main.js",
+  "module": "dist/module.js",
+  "types": "dist/types.d.ts",
   "files": [
     "dist",
     "src"
   ],
-  "engines": {
-    "node": ">=10"
-  },
   "scripts": {
-    "start": "tsdx watch",
-    "build": "tsdx build",
-    "test": "tsdx test --no-cache",
-    "lint": "tsdx lint",
-    "prepare": "tsdx build",
-    "size": "size-limit",
-    "analyze": "size-limit --why"
-  },
-  "peerDependencies": {},
-  "husky": {
-    "hooks": {
-      "pre-commit": "tsdx lint"
-    }
+    "watch": "parcel watch",
+    "build": "parcel build --reporter @parcel/reporter-bundle-analyzer",
+    "test": "jest",
+    "lint": "eslint . --ext .ts,.tsx",
+    "check": "tsc --noEmit",
+    "prettier": "prettier -w ./src ./test"
   },
   "prettier": {
     "printWidth": 80,
     "semi": true,
     "singleQuote": true,
-    "trailingComma": "es5"
+    "trailingComma": "es5",
+    "arrowParens": "avoid"
   },
   "name": "undomundo",
   "author": "Philip Mendels",
-  "module": "dist/undomundo.esm.js",
-  "size-limit": [
-    {
-      "path": "dist/undomundo.cjs.production.min.js",
-      "limit": "10 KB"
-    },
-    {
-      "path": "dist/undomundo.esm.js",
-      "limit": "10 KB"
-    }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/philipmendels/undomundo.git"
+  },
+  "homepage": "https://github.com/philipmendels/undomundo",
+  "keywords": [
+    "undo",
+    "undo/redo",
+    "history",
+    "time travel",
+    "branching",
+    "multiplayer",
+    "multi user",
+    "action based",
+    "typescript"
   ],
+  "description": "Action based, branching, multiplayer undo history.",
   "devDependencies": {
-    "@size-limit/preset-small-lib": "^4.10.2",
+    "@parcel/packager-ts": "^2.3.2",
+    "@parcel/reporter-bundle-analyzer": "^2.3.2",
+    "@parcel/transformer-typescript-types": "^2.3.2",
+    "@types/jest": "^27.4.1",
     "@types/uuid": "^8.3.0",
-    "husky": "^6.0.0",
-    "size-limit": "^4.10.2",
-    "ts-unused-exports": "^7.0.3",
-    "tsdx": "^0.14.1",
-    "tslib": "^2.2.0",
-    "typescript": "^4.2.4"
+    "@typescript-eslint/eslint-plugin": "^5.14.0",
+    "@typescript-eslint/parser": "^5.14.0",
+    "eslint": "^8.11.0",
+    "eslint-config-prettier": "^8.5.0",
+    "jest": "^27.5.1",
+    "parcel": "^2.3.2",
+    "prettier": "^2.5.1",
+    "ts-jest": "^27.1.3",
+    "typescript": "^4.6.2"
   },
   "dependencies": {
     "fp-ts": "^2.10.4",
     "fp-ts-std": "^0.10.0",
     "uuid": "^8.3.2"
-  },
-  "resolutions": {
-    "**/@typescript-eslint/eslint-plugin": "^4.23.0",
-    "**/@typescript-eslint/parser": "^4.23.0",
-    "**/typescript": "^4.2.4",
-    "**/jest": "^26.6.3",
-    "**/ts-jest": "^26.5.6"
   }
 }

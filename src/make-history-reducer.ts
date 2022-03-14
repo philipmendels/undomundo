@@ -22,7 +22,7 @@ import { add1, evolve, merge, modifyArrayAt, subtract1 } from './util';
 
 export type MakeHistoryReducerProps<
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 > =
   | {
       options?: HistoryOptions;
@@ -32,7 +32,7 @@ export type MakeHistoryReducerProps<
 
 export const makeHistoryReducer = <
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >({
   options = {},
   initBranchData = () => ({} as CBD),

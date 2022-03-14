@@ -182,9 +182,8 @@ describe('timeTravel', () => {
 
 describe('switchToBranch', () => {
   it('works', () => {
-    const { undoables, switchToBranch, timeTravel, undo } = makeUndoableState(
-      props
-    );
+    const { undoables, switchToBranch, timeTravel, undo } =
+      makeUndoableState(props);
 
     const { addToCount } = undoables;
 

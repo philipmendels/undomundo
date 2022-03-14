@@ -79,7 +79,7 @@ const reducer: Reducer<State, Actions> = (state, action) => {
 const { uReducer, actionCreators, getActionFromStateUpdate } = wrapReducer<
   State,
   PBT,
-  {},
+  Record<string, unknown>,
   NUA
 >({
   reducer,
@@ -93,7 +93,7 @@ const { uReducer, actionCreators, getActionFromStateUpdate } = wrapReducer<
       makeActionForUndo: ({ payload }) => ({ type: 'addToCount', payload }),
     },
     updateCount: {
-      updateHistory: state => _ => state.count,
+      updateHistory: state => () => state.count,
     },
   },
   options: {

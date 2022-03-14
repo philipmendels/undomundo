@@ -18,7 +18,7 @@ import {
 export const getUpdatesForAction = <
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >(
   uReducer: UReducerOf<S, PBT, CBD>
 ) => {
@@ -39,7 +39,7 @@ export const getUpdatesForAction = <
 export const initUState = <
   S,
   PBT extends PayloadConfigByType,
-  CD extends CustomData = {}
+  CD extends CustomData = Record<string, unknown>
 >(
   state: S,
   custom = {} as CD
@@ -52,7 +52,7 @@ export const initUState = <
 
 export const createEmptyHistory = <
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >(): MaybeEmptyHistory<PBT, CBD> => ({
   currentIndex: -1,
   branches: {},
@@ -64,7 +64,7 @@ export const createEmptyHistory = <
 
 export const initHistory = <
   PBT extends PayloadConfigByType,
-  CD extends CustomData = {}
+  CD extends CustomData = Record<string, unknown>
 >(
   custom = {} as CD
 ): History<PBT, CD> => {
@@ -108,32 +108,35 @@ export interface GetActionFromStateUpdateProps<S extends boolean> {
   invertAction?: boolean;
 }
 
-export const getAction = <S, PBT extends PayloadConfigByType>(
-  actionConfigs: PartialActionConfigByType<S, PBT> | ActionConfigByType<S, PBT>
-) => <S extends boolean>(props: GetActionFromStateUpdateProps<S>) => (
-  update: StateUpdate<PBT>
-): CastAction<S, PBT> => {
-  const { isSynchronizing, invertAction = false } = props;
-  let action: StateActionUnion<PBT>;
-  if (
-    (update.direction === 'undo' && !invertAction) ||
-    (update.direction === 'redo' && invertAction)
-  ) {
-    action = getUndoAction(actionConfigs)(update.action);
-  } else {
-    action = getRedoAction(actionConfigs)(update.action);
-  }
+export const getAction =
+  <S, PBT extends PayloadConfigByType>(
+    actionConfigs:
+      | PartialActionConfigByType<S, PBT>
+      | ActionConfigByType<S, PBT>
+  ) =>
+  <S extends boolean>(props: GetActionFromStateUpdateProps<S>) =>
+  (update: StateUpdate<PBT>): CastAction<S, PBT> => {
+    const { isSynchronizing, invertAction = false } = props;
+    let action: StateActionUnion<PBT>;
+    if (
+      (update.direction === 'undo' && !invertAction) ||
+      (update.direction === 'redo' && invertAction)
+    ) {
+      action = getUndoAction(actionConfigs)(update.action);
+    } else {
+      action = getRedoAction(actionConfigs)(update.action);
+    }
 
-  if (isSynchronizing) {
-    const syncAction: SyncActionUnion<PBT> = {
-      ...action,
-      undomundo: {
-        ...action.undomundo,
-        isSynchronizing: true,
-      },
-    };
-    return syncAction as CastAction<S, PBT>;
-  } else {
-    return action as CastAction<S, PBT>;
-  }
-};
+    if (isSynchronizing) {
+      const syncAction: SyncActionUnion<PBT> = {
+        ...action,
+        undomundo: {
+          ...action.undomundo,
+          isSynchronizing: true,
+        },
+      };
+      return syncAction as CastAction<S, PBT>;
+    } else {
+      return action as CastAction<S, PBT>;
+    }
+  };

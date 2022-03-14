@@ -32,7 +32,7 @@ const {
   actionConfigs: {
     updateCount: {
       updateState: count => merge({ count }),
-      updateHistory: state => _ => state.count,
+      updateHistory: state => () => state.count,
     },
   },
 });
@@ -40,7 +40,7 @@ const {
 const { updateCount } = actionCreators;
 
 const expectEqual = (action: UReducerAction<PBT>) => {
-  let uState = uReducer(
+  const uState = uReducer(
     { state, history, stateUpdates: [], historyUpdates: [] },
     action
   );

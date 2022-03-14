@@ -1,3 +1,4 @@
+/* eslint-disable no-prototype-builtins */
 import {
   AbsoluteActionConfig,
   ActionConfigByType,
@@ -23,7 +24,7 @@ import { undo, redo, timeTravel, switchToBranch } from './action-creators';
 
 import { wrapReducer } from './wrap-reducer';
 
-type State = {};
+type State = Record<string, unknown>;
 
 type HandlersByType<PBT extends PayloadConfigByType, R> = {
   [K in keyof PBT]: PBT[K]['isRelative'] extends true
@@ -71,7 +72,7 @@ export type HistoryOnChangeEvent<
 
 export type MakeUndoableEffectsProps<
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 > = {
   actionConfigs: EffectConfigs<PBT>;
   options?: HistoryOptions;
@@ -82,7 +83,7 @@ export type MakeUndoableEffectsProps<
 
 export const makeUndoableEffects = <
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >({
   initialHistory,
   actionConfigs,
@@ -107,19 +108,19 @@ export const makeUndoableEffects = <
     actionConfigs: mapRecord(actionConfigs)<ActionConfigByType<State, PBT>>(
       config => {
         if (isRelativeConfig(config)) {
-          return ({
-            updateHistory: _ => h => h,
-            updateState: _ => s => s,
+          return {
+            updateHistory: () => h => h,
+            updateState: () => s => s,
             makeActionForUndo: config.makeActionForUndo,
             updateStateOnUndo: config.updateStateOnUndo
-              ? _ => s => s
+              ? () => s => s
               : undefined,
-          } as RelativeActionConfig<State, PBT, string>) as any;
+          } as RelativeActionConfig<State, PBT, string> as any;
         } else {
-          return ({
-            updateHistory: _ => h => h,
-            updateState: _ => s => s,
-          } as AbsoluteActionConfig<State, PBT, string>) as any;
+          return {
+            updateHistory: () => h => h,
+            updateState: () => s => s,
+          } as AbsoluteActionConfig<State, PBT, string> as any;
         }
       }
     ),
@@ -167,17 +168,17 @@ export const makeUndoableEffects = <
     HandlersByType<PBT, History<PBT, CBD>>
   >((type, config) => {
     if (isRelativeConfig(config)) {
-      return (((payload: any) => {
+      return ((payload: any) => {
         const action = (actionCreators[type] as any)(payload);
         return withOnChange([action], uReducer(uState, action));
-      }) as RelativeHandler<any, History<PBT, CBD>>) as any;
+      }) as RelativeHandler<any, History<PBT, CBD>> as any;
     } else {
-      return (((undo: any, redo: any) => {
+      return ((undo: any, redo: any) => {
         const action = (actionCreators[type] as any)(redo, {
           undoValue: undo,
         });
         return withOnChange([action], uReducer(uState, action));
-      }) as AbsoluteHandler<any, History<PBT, CBD>>) as any;
+      }) as AbsoluteHandler<any, History<PBT, CBD>> as any;
     }
   });
 

@@ -33,37 +33,29 @@ export type HistoryPayload<P, R extends boolean | undefined> = R extends true
   ? P
   : AbsolutePayload<P>;
 
-export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: HistoryItem<
-      K,
-      HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
-      PBT[K]['extra']
-    >;
-  }
->;
+export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: HistoryItem<
+    K,
+    HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
+    PBT[K]['extra']
+  >;
+}>;
 
-export type HistoryActionUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: HistoryAction<
-      K,
-      HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
-      PBT[K]['extra']
-    >;
-  }
->;
+export type HistoryActionUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: HistoryAction<
+    K,
+    HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
+    PBT[K]['extra']
+  >;
+}>;
 
-export type HistoryPayloadUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>;
-  }
->;
+export type HistoryPayloadUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>;
+}>;
 
-export type AbsolutePayloadUnion<PBT extends PayloadConfigByType> = ValueOf<
-  {
-    [K in keyof PBT]: AbsolutePayload<PBT[K]['payload']>;
-  }
->;
+export type AbsolutePayloadUnion<PBT extends PayloadConfigByType> = ValueOf<{
+  [K in keyof PBT]: AbsolutePayload<PBT[K]['payload']>;
+}>;
 
 export type HistoryPayloadsAsUnion<PBT extends PayloadConfigByType> =
   | AbsolutePayloadUnion<PBT>
@@ -74,7 +66,7 @@ export interface ParentConnection {
   globalIndex: number;
 }
 
-export type CustomData = Record<string, any>;
+export type CustomData = Record<string, unknown>;
 
 export interface Branch<
   PBT extends PayloadConfigByType,
