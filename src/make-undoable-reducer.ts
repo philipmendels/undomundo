@@ -13,7 +13,7 @@ import { CustomData, InitBranchData } from './types/history';
 export type MakeUndoableReducerReducerProps<
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 > = {
   actionConfigs: ActionConfigByType<S, PBT>;
   options?: UOptions<S>;
@@ -23,7 +23,7 @@ export type MakeUndoableReducerReducerProps<
 export const makeUndoableReducer = <
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >({
   actionConfigs,
   options,

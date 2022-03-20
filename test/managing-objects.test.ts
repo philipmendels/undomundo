@@ -1,3 +1,4 @@
+/* eslint-disable no-prototype-builtins */
 import { invert } from 'fp-ts-std/Boolean';
 import { when } from 'fp-ts-std/Function';
 import { flow, pipe } from 'fp-ts/function';
@@ -39,11 +40,10 @@ type ObjWithId = {
   [key: string]: unknown;
 };
 
-const isIdInSelection = (selection: Record<ID, unknown>) => <
-  T extends ObjWithId
->(
-  item: T
-) => selection.hasOwnProperty(item.id);
+const isIdInSelection =
+  (selection: Record<ID, unknown>) =>
+  <T extends ObjWithId>(item: T) =>
+    selection.hasOwnProperty(item.id);
 
 const updateSelected = <T extends ObjWithId>(
   selection: Record<ID, unknown>,

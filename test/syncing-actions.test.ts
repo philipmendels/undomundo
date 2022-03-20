@@ -44,7 +44,7 @@ const actionConfigs: ActionConfigByType<State, PBT> = {
   },
   updateCount: {
     updateState: count => merge({ count }),
-    updateHistory: state => _ => state.count,
+    updateHistory: state => () => state.count,
   },
 };
 
@@ -297,17 +297,17 @@ describe('syncing using client log', () => {
   const client2 = createClient();
 
   client1.updateCount(3);
-  let update1 = client1.pullUpdate()!;
+  const update1 = client1.pullUpdate()!;
 
   client2.updateCount(5);
-  let update2 = client2.pullUpdate()!;
+  const update2 = client2.pullUpdate()!;
 
   const serverLog: Batch<PBT>[] = [];
 
   serverLog.push(update1);
   client2.pushUpdate({ batch: update1 });
 
-  let parentId = serverLog[serverLog.length - 1].id;
+  const parentId = serverLog[serverLog.length - 1].id;
   serverLog.push(update2);
   client1.pushUpdate({ batch: update2, parentId });
 

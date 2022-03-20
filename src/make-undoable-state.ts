@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 import { makeUndoableReducer } from './make-undoable-reducer';
 import {
   clearHistoryUpdates,
@@ -32,7 +33,7 @@ export type OnChangeEvent<
 export type MakeUndoableStateProps<
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 > = {
   initialUState: UState<S, PBT, CBD>;
   actionConfigs: ActionConfigByType<S, PBT>;
@@ -44,7 +45,7 @@ export type MakeUndoableStateProps<
 export const makeUndoableState = <
   S,
   PBT extends PayloadConfigByType,
-  CBD extends CustomData = {}
+  CBD extends CustomData = Record<string, unknown>
 >({
   initialUState,
   actionConfigs,

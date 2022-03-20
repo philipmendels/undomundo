@@ -1,6 +1,5 @@
-*.log
-.DS_Store
 node_modules
 dist
 .parcel-cache
 parcel-bundle-reports
+jest.config.js
