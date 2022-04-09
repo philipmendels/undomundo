@@ -5,7 +5,7 @@ import {
   makeUndoableState,
   MakeUndoableStateProps,
 } from '../src/make-undoable-state';
-import { RelativePayloadConfig } from '../src/types/main';
+import { CustomPayloadConfig } from '../src/types/main';
 import { add, evolve } from '../src/util';
 
 type State = {
@@ -13,7 +13,7 @@ type State = {
 };
 
 type PBT = {
-  addToCount: RelativePayloadConfig<number>;
+  addToCount: CustomPayloadConfig<number>;
 };
 
 let newUState = initUState<State, PBT>({

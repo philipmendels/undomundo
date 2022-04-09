@@ -4,7 +4,7 @@ import {
   ActionConfigByType,
   ActionConvertor,
   PayloadConfigByType,
-  RelativeActionConfig,
+  CustomActionConfig,
   UReducerAction,
   HistoryOptions,
   UActionOptions,
@@ -27,17 +27,17 @@ import { wrapReducer } from './wrap-reducer';
 type State = Record<string, unknown>;
 
 type HandlersByType<PBT extends PayloadConfigByType, R> = {
-  [K in keyof PBT]: PBT[K]['isRelative'] extends true
-    ? RelativeHandler<PBT[K]['payload'], R>
+  [K in keyof PBT]: PBT[K]['isCustom'] extends true
+    ? CustomHandler<PBT[K]['payload'], R>
     : AbsoluteHandler<PBT[K]['payload'], R>;
 };
 
 type ActionOptions = Pick<UActionOptions<any>, 'skipHistory' | 'skipState'>;
 
-type RelativeHandler<P, R> = (payload: P, options?: ActionOptions) => R;
+type CustomHandler<P, R> = (payload: P, options?: ActionOptions) => R;
 type AbsoluteHandler<P, R> = (undo: P, redo: P, options?: ActionOptions) => R;
 
-export type RelativeEffectConfig<
+export type CustomEffectConfig<
   PBT extends PayloadConfigByType,
   K extends keyof PBT
 > = {
@@ -51,14 +51,14 @@ export type AbsoluteEffectConfig<P> = {
 };
 
 export type EffectConfigs<PBT extends PayloadConfigByType> = {
-  [K in keyof PBT]: PBT[K]['isRelative'] extends true
-    ? RelativeEffectConfig<PBT, K>
+  [K in keyof PBT]: PBT[K]['isCustom'] extends true
+    ? CustomEffectConfig<PBT, K>
     : AbsoluteEffectConfig<PBT[K]['payload']>;
 };
 
-const isRelativeConfig = (
-  config: RelativeEffectConfig<any, string> | AbsoluteEffectConfig<any>
-): config is RelativeEffectConfig<any, string> =>
+const isCustomConfig = (
+  config: CustomEffectConfig<any, string> | AbsoluteEffectConfig<any>
+): config is CustomEffectConfig<any, string> =>
   config.hasOwnProperty('makeActionForUndo');
 
 export type HistoryOnChangeEvent<
@@ -107,7 +107,7 @@ export const makeUndoableEffects = <
     reducer: () => ({}),
     actionConfigs: mapRecord(actionConfigs)<ActionConfigByType<State, PBT>>(
       config => {
-        if (isRelativeConfig(config)) {
+        if (isCustomConfig(config)) {
           return {
             updateHistory: () => h => h,
             updateState: () => s => s,
@@ -115,7 +115,7 @@ export const makeUndoableEffects = <
             updateStateOnUndo: config.updateStateOnUndo
               ? () => s => s
               : undefined,
-          } as RelativeActionConfig<State, PBT, string> as any;
+          } as CustomActionConfig<State, PBT, string> as any;
         } else {
           return {
             updateHistory: () => h => h,
@@ -138,7 +138,7 @@ export const makeUndoableEffects = <
       .forEach(({ type, payload, undomundo }) => {
         const config = actionConfigs[type];
         if (
-          isRelativeConfig(config) &&
+          isCustomConfig(config) &&
           config.updateStateOnUndo &&
           undomundo?.isUndo
         ) {
@@ -167,11 +167,11 @@ export const makeUndoableEffects = <
   const undoables = mapRecordWithKey(actionConfigs)<
     HandlersByType<PBT, History<PBT, CBD>>
   >((type, config) => {
-    if (isRelativeConfig(config)) {
+    if (isCustomConfig(config)) {
       return ((payload: any) => {
         const action = (actionCreators[type] as any)(payload);
         return withOnChange([action], uReducer(uState, action));
-      }) as RelativeHandler<any, History<PBT, CBD>> as any;
+      }) as CustomHandler<any, History<PBT, CBD>> as any;
     } else {
       return ((undo: any, redo: any) => {
         const action = (actionCreators[type] as any)(redo, {

@@ -4,7 +4,7 @@ import {
   ActionConfigByType,
   UpdatersByType,
   UOptions,
-  RelativeActionConfig,
+  CustomActionConfig,
   OriginalPayloadByType,
 } from './types/main';
 import { makeReducer, mapRecord } from './util';
@@ -33,7 +33,7 @@ export const makeUndoableReducer = <
     mapRecord(actionConfigs)<UpdatersByType<S, OriginalPayloadByType<PBT>>>(
       config => ({
         undo:
-          (config as RelativeActionConfig<S, PBT, any>).updateStateOnUndo ??
+          (config as CustomActionConfig<S, PBT, any>).updateStateOnUndo ??
           config.updateState,
         redo: config.updateState,
       })

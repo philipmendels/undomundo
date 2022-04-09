@@ -3,10 +3,7 @@ import { identity } from 'fp-ts/function';
 import { redo, undo } from '../src/action-creators';
 import { initUState } from '../src/helpers';
 import { makeUndoableReducer } from '../src/make-undoable-reducer';
-import {
-  AbsolutePayloadConfig,
-  RelativePayloadConfig,
-} from '../src/types/main';
+import { AbsolutePayloadConfig, CustomPayloadConfig } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
 
 type State = {
@@ -15,8 +12,8 @@ type State = {
 
 type PBT = {
   updateCount: AbsolutePayloadConfig<number>;
-  addToCount: RelativePayloadConfig<number>;
-  addToCount_alt: RelativePayloadConfig<number>;
+  addToCount: CustomPayloadConfig<number>;
+  addToCount_alt: CustomPayloadConfig<number>;
 };
 
 const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({

@@ -257,7 +257,7 @@ const { uReducer } = makeUndoableReducer<State, PayloadConfigByType>({
 });
 ```
 
-By default an action is considered to be absolute, which means that two absolute values for undo and redo are stored in the history. Your can also choose to model an action as relative, which means that only a single relative value is stored in the history. You can for example choose to store the payload for the `setPosition` action in the history as a delta vector [dx, dy] instead of two point vectors [x1, y1] and [x2, y2].
+By default an action is considered to be absolute, which means that an object with 'undo' and 'redo' values is stored in the history. If you want to model these absolute values differently (e.g. as an [undo, redo] tuple) or if you want to model the action as relative with a single relative value in the history, then you have to type it with `isCustom: true`. You can for example choose to store the payload for the `setPosition` action in the history as a delta vector [dx, dy] instead of two point vectors [x1, y1] and [x2, y2].
 
 Here is the same example as the previous one, but now with `setPosition` modeled as a relative action:
 
@@ -276,12 +276,13 @@ type State = {
 
 type PayloadConfigByType = {
   setColor: {
+    // By default an action is considered to be absolute.
     payload: string;
   };
   setPosition: {
     payload: Vector2d;
-    // mark this action as relative:
-    isRelative: true;
+    // mark this action as custom in order to model it as a relative action
+    isCustom: true;
   };
 };
 
@@ -318,13 +319,13 @@ Finally, note that the choice between an absolute action (two absolute values in
 
 The three main functions (`wrapReducer`, `makeUndoableReducer`, `makeUndoableState`) all require the named `actionConfigs` argument. This is an object that maps configuration objects by action type.
 
-A config for an absolute action has the following properties:
+A config for a default absolute action has the following properties:
 
 - `initUndoValue (optional)`: If you do not pass a custom undo value to the action creator, then this function is used to generate the undo value from the state and the initial redo value. If you did not pass a custom undo value _and_ if this function is omitted then the updateHistory function will be used for intializing the undo value.
 - `updateHistory`: Function that takes the state and either the initial redo value (on init) or the current history undo/redo value (on undo/redo) and returns either the initial undo value (on init) or a new history undo/redo value (on undo/redo).
 - `updateState` (not for `wrapReducer`): Function that takes the value (from the initial action or from undo/redo) and the previous app state, and returns the new app state.
 
-A config for a relative action has the following properties:
+A config for a custom action has the following properties:
 
 - `makeActionForUndo`: Function for converting the action to an action for undo. You can either change the action type (e.g. change 'add' to 'subtract') or invert/negate the payload (e.g. change +42 to -42).
 - `updateHistory` (optional): Function that takes the app state and the value from the history, and returns a new value for the history.
@@ -533,3 +534,4 @@ being tightly integrated because the state is used to update the history on undo
   - getCurrentBranch
   - getAction
 - custom shaped actions (e.g. action.meta )
+- custom absolute payload (tuple)

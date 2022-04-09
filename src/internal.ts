@@ -20,7 +20,7 @@ import {
   HistoryUpdate,
   HistoryOptions,
   StateActionUnion,
-  RelativeActionConfig,
+  CustomActionConfig,
   SyncActionUnion,
   UActionUnion,
   AbsolutePartialActionConfigUnion,
@@ -444,7 +444,7 @@ export const getUndoAction =
         type,
         payload,
       });
-      if ((config as RelativeActionConfig<any, any, any>).updateStateOnUndo) {
+      if ((config as CustomActionConfig<any, any, any>).updateStateOnUndo) {
         // we cannot simply add 'isUndo' to the 'meta' field,
         // because the original 'meta' field may be a primitive
         // value.

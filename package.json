@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "source": "src/index.ts",
   "main": "dist/main.js",
@@ -15,7 +15,8 @@
     "test": "jest",
     "lint": "eslint . --ext .ts,.tsx",
     "check": "tsc --noEmit",
-    "prettier": "prettier -w ./src ./test"
+    "prettier": "prettier -w ./src ./test",
+    "ci": "npm run lint && npm run test && npm run check && npm run build"
   },
   "prettier": {
     "printWidth": 80,

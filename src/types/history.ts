@@ -36,7 +36,7 @@ export type HistoryPayload<P, R extends boolean | undefined> = R extends true
 export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<{
   [K in keyof PBT]: HistoryItem<
     K,
-    HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
+    HistoryPayload<PBT[K]['payload'], PBT[K]['isCustom']>,
     PBT[K]['extra']
   >;
 }>;
@@ -44,13 +44,13 @@ export type HistoryItemUnion<PBT extends PayloadConfigByType> = ValueOf<{
 export type HistoryActionUnion<PBT extends PayloadConfigByType> = ValueOf<{
   [K in keyof PBT]: HistoryAction<
     K,
-    HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>,
+    HistoryPayload<PBT[K]['payload'], PBT[K]['isCustom']>,
     PBT[K]['extra']
   >;
 }>;
 
 export type HistoryPayloadUnion<PBT extends PayloadConfigByType> = ValueOf<{
-  [K in keyof PBT]: HistoryPayload<PBT[K]['payload'], PBT[K]['isRelative']>;
+  [K in keyof PBT]: HistoryPayload<PBT[K]['payload'], PBT[K]['isCustom']>;
 }>;
 
 export type AbsolutePayloadUnion<PBT extends PayloadConfigByType> = ValueOf<{

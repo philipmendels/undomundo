@@ -10,7 +10,7 @@ import {
 import {
   Reducer,
   AbsolutePayloadConfig,
-  RelativePayloadConfig,
+  CustomPayloadConfig,
   StateActionUnion,
 } from '../src/types/main';
 import { add, evolve, merge, subtract } from '../src/util';
@@ -48,8 +48,8 @@ type PBT = {
   updateCount: AbsolutePayloadConfig<number> & {
     extra: typeof extra;
   };
-  addToCount: RelativePayloadConfig<number>;
-  subtractFromCount: RelativePayloadConfig<number>;
+  addToCount: CustomPayloadConfig<number>;
+  subtractFromCount: CustomPayloadConfig<number>;
 };
 
 let uState = initUState<State, PBT>({

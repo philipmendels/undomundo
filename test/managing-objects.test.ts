@@ -9,7 +9,7 @@ import { initUState } from '../src/helpers';
 import {
   ActionConfigByType,
   AbsolutePayloadConfig,
-  RelativePayloadConfig,
+  CustomPayloadConfig,
 } from '../src/types/main';
 import { evolve, merge } from '../src/util';
 
@@ -26,7 +26,7 @@ type State = {
   cards: Record<ID, Card>;
 };
 
-type CardsPayloadConfig = RelativePayloadConfig<Record<ID, Card | null>>;
+type CardsPayloadConfig = CustomPayloadConfig<Record<ID, Card | null>>;
 
 type PBT = {
   setColor: AbsolutePayloadConfig<Record<ID, Color>>;

@@ -23,18 +23,18 @@ export type PayloadConfigByType = Record<string, PayloadConfig>;
 
 export type PayloadConfig<P = any> = {
   payload: P;
-  isRelative?: boolean;
+  isCustom?: boolean;
   extra?: StringMap;
 };
 
 export type AbsolutePayloadConfig<T> = {
   payload: T;
-  isRelative: false;
+  isCustom: false;
 };
 
-export type RelativePayloadConfig<T> = {
+export type CustomPayloadConfig<T> = {
   payload: T;
-  isRelative: true;
+  isCustom: true;
 };
 
 export type OriginalPayloadByType<PBT extends PayloadConfigByType> = {
@@ -88,7 +88,7 @@ export type ActionConvertor<
   action: Action<K, PBT[K]['payload']> & PBT[K]['extra']
 ) => StateActionUnion<PBT>;
 
-export type RelativePartialActionConfig<
+export type CustomPartialActionConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
@@ -97,23 +97,23 @@ export type RelativePartialActionConfig<
   updateHistory?: Updater<S, PBT[K]['payload']>;
 };
 
-export type RelativePartialActionConfigByType<
+export type CustomPartialActionConfigByType<
   S,
   PBT extends PayloadConfigByType
 > = {
-  [K in keyof PBT]: RelativePartialActionConfig<S, PBT, K>;
+  [K in keyof PBT]: CustomPartialActionConfig<S, PBT, K>;
 };
 
-export type RelativePartialActionConfigUnion<
+export type CustomPartialActionConfigUnion<
   S,
   PBT extends PayloadConfigByType
-> = ValueOf<RelativePartialActionConfigByType<S, PBT>>;
+> = ValueOf<CustomPartialActionConfigByType<S, PBT>>;
 
-export type RelativeActionConfig<
+export type CustomActionConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = RelativePartialActionConfig<S, PBT, K> & {
+> = CustomPartialActionConfig<S, PBT, K> & {
   updateState: Updater<PBT[K]['payload'], S>;
   updateStateOnUndo?: Updater<PBT[K]['payload'], S>;
 };
@@ -148,23 +148,23 @@ export type AbsolutePartialActionConfigUnion<
 > = ValueOf<AbsolutePartialActionConfigByType<S, PBT>>;
 
 export type PartialActionConfigsAsUnion<S, PBT extends PayloadConfigByType> =
-  | RelativePartialActionConfigUnion<S, PBT>
+  | CustomPartialActionConfigUnion<S, PBT>
   | AbsolutePartialActionConfigUnion<S, PBT>;
 
 export type PartialActionConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = PBT[K]['isRelative'] extends true
-  ? RelativePartialActionConfig<S, PBT, K>
+> = PBT[K]['isCustom'] extends true
+  ? CustomPartialActionConfig<S, PBT, K>
   : AbsolutePartialActionConfig<S, PBT, K>;
 
 export type ActionConfig<
   S,
   PBT extends PayloadConfigByType,
   K extends keyof PBT
-> = PBT[K]['isRelative'] extends true
-  ? RelativeActionConfig<S, PBT, K>
+> = PBT[K]['isCustom'] extends true
+  ? CustomActionConfig<S, PBT, K>
   : AbsoluteActionConfig<S, PBT, K>;
 
 export type PartialActionConfigByType<S, PBT extends PayloadConfigByType> = {

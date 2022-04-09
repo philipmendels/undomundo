@@ -1,6 +1,6 @@
 import { negate } from 'fp-ts-std/Number';
 import { identity } from 'fp-ts/function';
-import { AbsolutePayloadConfig, RelativePayloadConfig } from '../src';
+import { AbsolutePayloadConfig, CustomPayloadConfig } from '../src';
 import { makeUndoableEffects } from '../src/make-undoable-effects';
 import { add, evolve, merge, subtract } from '../src/util';
 
@@ -10,8 +10,8 @@ type State = {
 
 type PBT = {
   updateCount: AbsolutePayloadConfig<number>;
-  addToCount: RelativePayloadConfig<number>;
-  addToCount_alt: RelativePayloadConfig<number>;
+  addToCount: CustomPayloadConfig<number>;
+  addToCount_alt: CustomPayloadConfig<number>;
 };
 
 let state: State = {

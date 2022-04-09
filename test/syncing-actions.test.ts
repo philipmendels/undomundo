@@ -6,7 +6,7 @@ import { getAction, initUState } from '../src/helpers';
 import {
   ActionConfigByType,
   AbsolutePayloadConfig,
-  RelativePayloadConfig,
+  CustomPayloadConfig,
   StateUpdate,
   PayloadConfigByType,
   SyncActionUnion,
@@ -19,19 +19,11 @@ type State = {
 
 type PBT = {
   updateCount: AbsolutePayloadConfig<number>;
-  addToCount: RelativePayloadConfig<number>;
-  multiplyCount: RelativePayloadConfig<number>;
+  addToCount: CustomPayloadConfig<number>;
+  multiplyCount: CustomPayloadConfig<number>;
 };
 
 // TODO: add test for syncing updateStateOnUndo
-// addToCount_alt: {
-//   ...makeRelativeActionConfig({
-//     updateState: amount => evolve({ count: add(amount) }),
-//     makeActionForUndo: identity,
-//   }),
-//   // separate updater for undo
-//   updateStateOnUndo: amount => evolve({ count: subtract(amount) }),
-// },
 
 const actionConfigs: ActionConfigByType<State, PBT> = {
   addToCount: {
