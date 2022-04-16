@@ -15,9 +15,11 @@ import { add, evolve, merge } from '../src/util';
 
 type State = {
   count: number;
+  count2: number;
 };
 
 type PBT = {
+  updateCount2: AbsolutePayloadConfig<number>;
   updateCount: AbsolutePayloadConfig<number>;
   addToCount: CustomPayloadConfig<number>;
   multiplyCount: CustomPayloadConfig<number>;
@@ -38,6 +40,10 @@ const actionConfigs: ActionConfigByType<State, PBT> = {
     updateState: count => merge({ count }),
     updateHistory: state => () => state.count,
   },
+  updateCount2: {
+    updateState: count2 => merge({ count2 }),
+    updateHistory: state => () => state.count2,
+  },
 };
 
 interface Batch<PBT extends PayloadConfigByType> {
@@ -53,15 +59,21 @@ interface ServerBatch<PBT extends PayloadConfigByType> {
 const createClient = () => {
   let uState = initUState<State, PBT>({
     count: 0,
+    count2: 2,
   });
 
   const { uReducer, actionCreators } = makeUndoableReducer<State, PBT>({
     actionConfigs,
   });
 
+  // For reverting out-of-sync actions
   const log: Batch<PBT>[] = [];
 
-  const { addToCount, updateCount, multiplyCount } = actionCreators;
+  // For rejecting conflicting incoming absolute updates
+  const unconfirmedUpdates: Batch<PBT>[] = [];
+
+  const { addToCount, updateCount, updateCount2, multiplyCount } =
+    actionCreators;
 
   const push = (actions: SyncActionUnion<PBT>[]) => {
     uState = actions.reduce(uReducer, uState);
@@ -69,6 +81,7 @@ const createClient = () => {
 
   return {
     getCurrentState: () => uState,
+
     pushUpdate: (serverBatch: ServerBatch<PBT>) => {
       const { batch } = serverBatch;
       if (!log.length || log[log.length - 1].id === serverBatch.parentId) {
@@ -96,6 +109,27 @@ const createClient = () => {
         push(toRevert.flatMap(batch => batch.updates).map(convert));
       }
     },
+    confirmAbsUpdate: (id: string) => {
+      if (!unconfirmedUpdates.length) {
+        throw new Error('no outgoing update to confirm');
+      } else {
+        const update = unconfirmedUpdates[0];
+        if (update.id !== id) {
+          throw new Error('unexpected id to confirm');
+        } else {
+          unconfirmedUpdates.shift();
+        }
+      }
+    },
+    pushAbsUpdate: (batch: Batch<PBT>) => {
+      const updates = batch.updates.filter(
+        update =>
+          !unconfirmedUpdates
+            .flatMap(b => b.updates)
+            .find(u => u.action.type === update.action.type)
+      );
+      push(updates.map(convert));
+    },
     pullUpdate: () => {
       const updates = uState.stateUpdates;
       if (updates.length) {
@@ -108,12 +142,27 @@ const createClient = () => {
       }
       return null;
     },
+    pullAbsUpdate: () => {
+      const updates = uState.stateUpdates;
+      if (updates.length) {
+        const batch: Batch<PBT> = {
+          updates,
+          id: v4(),
+        };
+        unconfirmedUpdates.push(batch);
+        return batch;
+      }
+      return null;
+    },
     push,
     pull: () => {
       return uState.stateUpdates;
     },
     updateCount: (count: number) => {
       uState = uReducer(uState, updateCount(count));
+    },
+    updateCount2: (count2: number) => {
+      uState = uReducer(uState, updateCount2(count2));
     },
     addToCount: (amount: number) => {
       uState = uReducer(uState, addToCount(amount));
@@ -203,88 +252,61 @@ describe('syncing actions without conflicts', () => {
   });
 });
 
-describe('syncing actions with conflicts ', () => {
+describe('Revert out of sync actions manually', () => {
   const client1 = createClient();
   const client2 = createClient();
+  client1.updateCount(3);
+  client2.updateCount(3);
 
-  it('conflicts are resolved for all-absolute payloads', () => {
-    client1.updateCount(3);
-    let s1 = client1.getCurrentState();
-    expect(s1.state.count).toEqual(3);
-    const effects1 = client1.pull();
+  client1.addToCount(2);
+  let s1 = client1.getCurrentState();
+  expect(s1.state.count).toEqual(5);
+  const effects1 = client1.pull();
 
-    client2.updateCount(7);
-    let s2 = client2.getCurrentState();
-    expect(s2.state.count).toEqual(7);
-    const effects2 = client2.pull();
+  client2.multiplyCount(3);
+  let s2 = client2.getCurrentState();
+  expect(s2.state.count).toEqual(9);
+  const effects2 = client2.pull();
 
-    // Very basic implementation without the need to revert out-of-sync actions.
-    // Actions are always applied twice due to confirmation step, therefore
-    // it only works if all the payloads of the out-of-sync actions are absolute and
-    // if a client does not create a new action before receiving the confirmation.
+  client1.push(effects2.map(convert)); // sync
 
-    client1.push(effects2.map(convert)); // sync
-    client2.push(effects2.map(convert)); // confirmation
+  // Client 2 is out-of-sync. The actions in client 2 that are out-of-sync
+  // need to be reverted, then the actions of client 1 need to be synced to
+  // client 2, and then the actions of client 2 need to be re-applied.
+  //
+  // The next line reverts the last action correctly but leads to the wrong undo-history:
+  // client2.undo().
+  //
+  // Instead let's revert the actions manually.
+  client2.push(effects2.map(revert));
 
-    client1.push(effects1.map(convert)); // confirmation
-    client2.push(effects1.map(convert)); // sync
+  s2 = client2.getCurrentState();
 
-    s1 = client1.getCurrentState();
-    s2 = client2.getCurrentState();
-    expect(s1.state.count).toEqual(3);
-    expect(s2.state.count).toEqual(3);
-  });
+  expect(s2.state.count).toEqual(3);
 
-  it('conflicts are resolved for relative payloads', () => {
-    client1.addToCount(2);
-    let s1 = client1.getCurrentState();
-    expect(s1.state.count).toEqual(5);
-    const effects1 = client1.pull();
+  client2.push(effects1.map(convert)); // sync
+  client2.push(effects2.map(convert)); // re-apply
 
-    client2.multiplyCount(3);
-    let s2 = client2.getCurrentState();
-    expect(s2.state.count).toEqual(9);
-    const effects2 = client2.pull();
+  s1 = client1.getCurrentState();
+  s2 = client2.getCurrentState();
+  expect(s1.state.count).toEqual(15);
+  expect(s2.state.count).toEqual(15);
 
-    client1.push(effects2.map(convert)); // sync
+  // Should the actions that were reverted be removed from the undo history
+  // of client 2? Probably not because they did happen, even though their result
+  // was perhaps only visible for a very short while.
 
-    // Client 2 is out-of-sync. The actions in client 2 that are out-of-sync
-    // need to be reverted, then the actions of client 1 need to be synced to
-    // client 2, and then the actions of client 2 need to be re-applied.
-    //
-    // The next line reverts the last action correctly but leads to the wrong undo-history:
-    // client2.undo().
-    //
-    // Instead let's revert the actions manually.
-    client2.push(effects2.map(revert));
-
-    s2 = client2.getCurrentState();
-
-    expect(s2.state.count).toEqual(3);
-
-    client2.push(effects1.map(convert)); // sync
-    client2.push(effects2.map(convert)); // re-apply
-
-    s1 = client1.getCurrentState();
-    s2 = client2.getCurrentState();
-    expect(s1.state.count).toEqual(15);
-    expect(s2.state.count).toEqual(15);
-
-    // Should the actions that were reverted be removed from the undo history
-    // of client 2? Probably not because they did happen, even though their result
-    // was perhaps only visible for a very short while.
-
-    client1.undo(); // + -2
-    client2.undo(); // * 1/3
-    s1 = client1.getCurrentState();
-    s2 = client2.getCurrentState();
-    // Results are conceptually strange but technically correct due to the relative payloads.
-    expect(s1.state.count).toEqual(13);
-    expect(s2.state.count).toEqual(5);
-  });
+  client1.undo(); // + -2
+  client2.undo(); // * 1/3
+  s1 = client1.getCurrentState();
+  s2 = client2.getCurrentState();
+  // Results are conceptually strange but technically correct due to the relative payloads.
+  expect(s1.state.count).toEqual(13);
+  expect(s2.state.count).toEqual(5);
 });
 
-describe('syncing using client log', () => {
+describe('Revert out-of-sync actions automatically using log', () => {
+  // Automated version of the previous test
   const client1 = createClient();
   const client2 = createClient();
 
@@ -305,4 +327,33 @@ describe('syncing using client log', () => {
 
   expect(client1.getCurrentState().state.count).toEqual(5);
   expect(client2.getCurrentState().state.count).toEqual(5);
+});
+
+describe('Reject incoming updates that conflict with unconfirmed updates', () => {
+  // Works only for absolute atomic updates
+  const client1 = createClient();
+  const client2 = createClient();
+
+  client1.updateCount(3);
+  const update1 = client1.pullAbsUpdate()!;
+  client1.updateCount2(9);
+  const update1b = client1.pullAbsUpdate()!;
+
+  client2.updateCount(5);
+  const update2 = client2.pullAbsUpdate()!;
+
+  client1.confirmAbsUpdate(update1.id);
+  // should be rejected due to conflict:
+  client2.pushAbsUpdate(update1);
+
+  client1.confirmAbsUpdate(update1b.id);
+  client2.pushAbsUpdate(update1b);
+
+  client2.confirmAbsUpdate(update2.id);
+  client1.pushAbsUpdate(update2);
+
+  expect(client1.getCurrentState().state.count).toEqual(5);
+  expect(client2.getCurrentState().state.count).toEqual(5);
+  expect(client1.getCurrentState().state.count2).toEqual(9);
+  expect(client2.getCurrentState().state.count2).toEqual(9);
 });
